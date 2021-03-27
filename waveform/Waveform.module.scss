@@ -36,3 +36,23 @@
   fill: rgba(0, 255, 255, 0.4);
   pointer-events: none;
 }
+
+
+.waveformClip {
+  fill: hsla(205, 10%, 40%, 0.7);
+}
+.highlightedClip {
+  stroke: rgba(100, 255, 0, 0.8);
+  fill: rgba(0, 255, 0, 0.26);
+  fill: #8f9aad;
+}
+
+
+
+.waveformClipBorder {
+  /* fill: hsla(205, 10%, 40%, 0.7); */
+  fill: transparent;
+  stroke: none;
+  cursor: ew-resize;
+  z-index: 10;
+}

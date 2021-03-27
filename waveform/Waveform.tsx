@@ -15,34 +15,57 @@ import {
   MutableRefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
 import WaveformMousedownEvent, {
   WaveformDragAction,
+  WaveformDragCreate,
   WaveformDragEvent,
+  WaveformDragMove,
+  WaveformDragStretch,
 } from "./WaveformEvent";
 import { WaveformSelection, WaveformState } from "./WaveformState";
 import css from "./Waveform.module.scss";
+import { getClipRectProps } from "./getClipRectProps";
+import { Clips } from "./WaveformClips";
+
+type WaveformEventHandlers = {
+  onWaveformDrag: (action: WaveformDragCreate) => void;
+  onClipDrag: (action: WaveformDragMove) => void;
+  onClipEdgeDrag: (action: WaveformDragStretch) => void;
+};
 
 export default function Waveform({
   waveform,
   durationSeconds,
   imageUrls,
   playerRef,
+  ...waveformEventHandlers
 }: {
   waveform: WaveformInterface;
   durationSeconds: number;
   imageUrls: string[];
   playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
-}) {
+} & WaveformEventHandlers) {
   const height = WAVEFORM_HEIGHT; // + subtitles.totalTracksCount * SUBTITLES_CHUNK_HEIGHT
 
   const { viewBoxStartMs, pixelsPerSecond, pendingAction } = waveform.state;
-  const { handleMouseDown, pendingActionRef } = useWaveformMouseActions(
-    waveform.svgRef,
-    waveform.state,
+  const { handleMouseDown, pendingActionRef } = useWaveformMouseActions({
+    svgRef: waveform.svgRef,
+    state: waveform.state,
     playerRef,
-    waveform.dispatch
+    dispatch: waveform.dispatch,
+    ...waveformEventHandlers,
+  });
+
+  const highlightedClipId = null;
+  const clips = useMemo(
+    () =>
+      waveform.waveformItems.flatMap((item) =>
+        item.type === "Clip" ? [item.item] : []
+      ),
+    [waveform.waveformItems]
   );
 
   return (
@@ -86,6 +109,13 @@ export default function Waveform({
             />
           );
         })}
+        <Clips
+          clips={clips}
+          highlightedClipId={highlightedClipId}
+          height={height}
+          playerRef={playerRef}
+          pixelsPerSecond={pixelsPerSecond}
+        />
         {pendingAction && (
           <PendingWaveformItem
             action={pendingAction}
@@ -199,21 +229,18 @@ function PendingWaveformItem({
     />
   );
 }
-function getClipRectProps(start: number, end: number, height: number) {
-  return {
-    x: Math.min(start, end),
-    y: 0,
-    width: Math.abs(start - end),
-    height,
-  };
-}
-
-function useWaveformMouseActions(
-  svgRef: React.RefObject<SVGSVGElement>,
-  state: WaveformState,
-  playerRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>,
-  dispatch: (action: WaveformAction) => void
-) {
+function useWaveformMouseActions({
+  svgRef,
+  state,
+  playerRef,
+  dispatch,
+  onWaveformDrag,
+}: {
+  svgRef: React.RefObject<SVGSVGElement>;
+  state: WaveformState;
+  playerRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
+  dispatch: (action: WaveformAction) => void;
+} & WaveformEventHandlers) {
   const { pendingAction, pixelsPerSecond, durationSeconds } = state;
   const pendingActionRef = useRef<SVGRectElement | null>(null);
 
@@ -317,6 +344,7 @@ function useWaveformMouseActions(
           waveformState: state,
         };
         document.dispatchEvent(new WaveformDragEvent(finalAction));
+        if (finalAction.type === "CREATE") onWaveformDrag(finalAction);
       }
     };
     document.addEventListener("mouseup", handleMouseUps);

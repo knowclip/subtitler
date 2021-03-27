@@ -1,4 +1,3 @@
-import "plyr-react/dist/plyr.css";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../styles/Home.module.css";
 import { usePrevious } from "../utils/usePrevious";
@@ -9,6 +8,8 @@ import { usePlayButtonSync } from "../utils/usePlayButtonSync";
 import Waveform from "../waveform/Waveform";
 import { useWaveform } from "../waveform/useWaveform";
 import { useWaveformImages } from "../waveform/useWaveformImages";
+import { WaveformSelectionExpanded } from "../waveform/WaveformState";
+import { WaveformDragCreate, WaveformDragMove, WaveformDragStretch } from "../waveform/WaveformEvent";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -91,8 +92,36 @@ export default function Home() {
     [fileSelection]
   );
 
+  const [waveformItems, setWaveformItems] = useState<
+    WaveformSelectionExpanded[]
+  >([]);
+  const handleWaveformDrag = useCallback(
+    ({ start, end, waveformState }: WaveformDragCreate) => {
+      const newClip = {
+        start,
+        end,
+        id: Math.random().toString(),
+        type: "Clip",
+      };
+      setWaveformItems((items) =>
+        [
+          ...items,
+          {
+            type: 'Clip' as const,
+            id: newClip.id,
+            item: newClip,
+          },
+        ].sort((a, b) => a.item.start - b.item.start)
+        .map((item, i) => ({...item, index: i}))
+      );
+    },
+    []
+  );
+  const handleClipDrag = useCallback(({ start, end }: WaveformDragMove) => {}, [])
+  const handleClipEdgeDrag = useCallback(({ start, end }: WaveformDragStretch) => {}, [])
+
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
-  const waveform = useWaveform([]);
+  const waveform = useWaveform(waveformItems);
   const { onTimeUpdate, resetWaveformState } = waveform;
   usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
 
@@ -132,6 +161,9 @@ export default function Home() {
             durationSeconds={fileSelection.durationSeconds}
             imageUrls={waveformUrls}
             playerRef={playerRef}
+            onWaveformDrag={handleWaveformDrag}
+            onClipDrag={handleClipDrag}
+            onClipEdgeDrag={handleClipEdgeDrag}
           />
         )}
       </main>

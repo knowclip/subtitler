@@ -20,5 +20,5 @@ export type WaveformSelectionExpanded =
       cardBaseIndex: number;
     };
 
-type Clip = any;
+export type Clip = { id: string, start: number, end: number };
 type SubtitlesCardBase = any;
