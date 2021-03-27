@@ -1,26 +1,43 @@
-import Plyr from "plyr-react";
-import 'plyr-react/dist/plyr.css'
+import "plyr-react/dist/plyr.css";
 import React, { useCallback, useEffect, useState } from "react";
 import Waveform from "../components/Waveform";
 import styles from "../styles/Home.module.css";
+import { usePrevious } from "../utils/usePrevious";
 import { useWaveformImages } from "../utils/useWaveformImages";
-export type MediaSelection =
-  | { location: "LOCAL"; type: MediaType; url: string }
-  | { location: "NETWORK"; type: MediaType; url: string };
+import { Media } from "../components/Media";
+import { ffmpeg, getDuration } from "../utils/ffmpeg";
+import { fetchFile } from "@ffmpeg/ffmpeg";
+export type MediaSelection = {
+  location: "LOCAL" | "NETWORK";
+  type: MediaType;
+  url: string;
+  durationSeconds: number;
+};
 type MediaType = "VIDEO" | "AUDIO";
 
 export default function Home() {
   const [fileSelection, setFileSelection] = useState<MediaSelection | null>();
+  const [selectionIsLoading, setSelectionIsLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>();
 
   const {
-    waveformLoading,
+    waveformLoading: _,
+    error: waveformError,
     waveformUrls,
     loadWaveformImages,
   } = useWaveformImages();
 
+  const prevFileSelection = usePrevious(fileSelection);
+  useEffect(() => {
+    if (fileSelection !== prevFileSelection) {
+      console.log({ prevFileSelection, fileSelection });
+      return;
+    }
+  }, [fileSelection, prevFileSelection]);
+
   const handleChangeLocalFile: React.ChangeEventHandler<HTMLInputElement> = useCallback(
     (e) => {
+      setSelectionIsLoading(true);
       const { files } = e.target;
       const [file] = files;
       console.log({ file });
@@ -32,12 +49,28 @@ export default function Home() {
       let fileError = tooBig
         ? "File is too big. Please choose a file under 2 GB."
         : null;
-      const fileType = file.type.startsWith("audio") ? "AUDIO" : "VIDEO";
-      const fileSelection: MediaSelection | null = file
-        ? { location: "LOCAL", url: URL.createObjectURL(file), type: fileType }
-        : null;
-      setFileSelection(fileSelection);
-      setFileError(fileError);
+      if (fileError || !file) {
+        setFileSelection(null);
+        setFileError(fileError);
+        setSelectionIsLoading(false);
+      }
+
+      (async function () {
+        const name = "record.webm";
+        if (!ffmpeg.isLoaded()) await ffmpeg.load();
+        ffmpeg.FS("writeFile", name, await fetchFile(file));
+
+        const fileSelection: MediaSelection = {
+          location: "LOCAL",
+          url: URL.createObjectURL(file),
+          type: getFileType(file),
+          durationSeconds: await getDuration(name),
+        };
+        setFileSelection(fileSelection);
+        setFileError(fileError);
+      })().catch((err) => {
+        setFileError(String(err));
+      });
     },
     []
   );
@@ -74,32 +107,16 @@ export default function Home() {
           {fileError}
         </form>
 
+        {fileSelection && <Media fileSelection={fileSelection} />}
+
         {fileSelection && (
-          <div>
-            {fileSelection.type === "VIDEO" && (
-              <Plyr
-                id="player"
-                source={{
-                  type: "video",
-                  sources: [{ src: fileSelection.url }],
-                }}
-                style={{ width: "100%" }}
-                data-plyr-config='{ "title": "Example Title" }'
-              />
-            )}
-            {fileSelection.type === "AUDIO" && (
-              <audio id="player" src={fileSelection.url} controls />
-            )}
+          <div className={styles.grid}>
+            <Waveform
+              durationSeconds={fileSelection.durationSeconds}
+              imageUrls={waveformUrls}
+            />
           </div>
         )}
-
-        <div className={styles.grid}>
-          {waveformLoading && <>Loading...</>}
-          {waveformUrls.map((url) => (
-            <img key={url} src={url} />
-          ))}
-          <Waveform />
-        </div>
       </main>
 
       <footer className={styles.footer}>
@@ -113,4 +130,7 @@ export default function Home() {
       </footer>
     </div>
   );
+}
+function getFileType(file: File) {
+  return file.type.startsWith("audio") ? "AUDIO" : "VIDEO";
 }

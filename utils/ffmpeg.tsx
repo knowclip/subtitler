@@ -8,7 +8,6 @@ export const ffmpeg = createFFmpeg({
     if (match) {
       const [, hh = "00", mm = "00", ssss = "00"] = match;
       const [hours, minutes, seconds] = [hh, mm, ssss].map(Number);
-      console.log(match, [hours, minutes, seconds]);
       const duration = hours * 60 * 60 + minutes * 60 + seconds;
       latestDuration.current.resolve(duration);
     }
