@@ -11,8 +11,11 @@
     "@ffmpeg/ffmpeg": "^0.9.7",
     "next": "latest",
     "next-pwa": "^3.1.0",
+    "plyr": "^3.6.4",
+    "plyr-react": "^3.0.8",
     "react": "^16.13.1",
-    "react-dom": "^16.13.1"
+    "react-dom": "^16.13.1",
+    "sass": "^1.32.8"
   },
   "license": "MIT",
   "devDependencies": {

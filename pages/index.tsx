@@ -1,5 +1,6 @@
 import FFmpeg from "@ffmpeg/ffmpeg";
-import React, { useCallback, useState } from "react";
+import Plyr from "plyr-react";
+import React, { useCallback, useEffect, useState } from "react";
 import Waveform from "../components/Waveform";
 import styles from "../styles/Home.module.css";
 
@@ -61,7 +62,7 @@ const toTimestamp = (
   return `${hoursStamp}${unitsSeparator}${minutesStamp}${unitsSeparator}${secondsStamp}${millisecondsSeparator}${millisecondsStamp}`;
 };
 
-const transcode = async (media: Blob) => {
+const getWaveformPngs = async (media: Blob) => {
   console.log("transcoding");
   const name = "record.webm";
   if (!ffmpeg.isLoaded()) await ffmpeg.load();
@@ -149,6 +150,7 @@ export default function Home() {
     },
     []
   );
+
   const handleSubmitForm: React.FormEventHandler = useCallback(
     (e) => {
       e.preventDefault();
@@ -158,7 +160,7 @@ export default function Home() {
         setWaveformLoading(true);
         fetch(fileSelection.url)
           .then((response) => response.blob())
-          .then((blob) => transcode(blob))
+          .then((blob) => getWaveformPngs(blob))
           .then((urls) => {
             console.log("done");
             waveformLoadSuccess(urls);
@@ -191,10 +193,18 @@ export default function Home() {
         {fileSelection && (
           <div>
             {fileSelection.type === "VIDEO" && (
-              <video src={fileSelection.url} controls style={{ width: '100%' }}/>
+              <Plyr
+                id="player"
+                source={{
+                  type: "video",
+                  sources: [{ src: fileSelection.url }],
+                }}
+                style={{ width: "100%" }}
+                data-plyr-config='{ "title": "Example Title" }'
+              />
             )}
             {fileSelection.type === "AUDIO" && (
-              <audio src={fileSelection.url} controls />
+              <audio id="player" src={fileSelection.url} controls />
             )}
           </div>
         )}
