@@ -1,13 +1,13 @@
 import { useCallback, MutableRefObject, Dispatch } from "react";
 import { WaveformAction } from "./useWaveform";
-import { secondsToMs, msToSeconds, pixelsToMs } from "../utils/waveform";
+import { secondsToMs, msToSeconds, pixelsToMs } from "./utils";
 import {
   WaveformSelection,
   WaveformSelectionExpanded,
   WaveformState,
 } from "./WaveformState";
-import { bound } from "./bound";
-import { elementWidth } from "./elementWidth";
+import { bound } from "../utils/bound";
+import { elementWidth } from "../utils/elementWidth";
 
 const HALF_SECOND = 500;
 export const overlapsSignificantly = (

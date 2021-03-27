@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ffmpeg, getDuration } from "./ffmpeg";
+import { ffmpeg, getDuration } from "../utils/ffmpeg";
 import { MediaSelection } from "../pages/index";
 
 const WAVE_COLOR = "#b7cee0";

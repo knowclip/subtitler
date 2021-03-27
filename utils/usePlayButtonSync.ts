@@ -3,7 +3,7 @@ import {
   startMovingCursor,
   stopMovingCursor,
   setCursorX,
-} from "../utils/waveform";
+} from "../waveform/utils";
 import { usePrevious } from "../utils/usePrevious";
 
 export type PlayButtonSync = ReturnType<typeof usePlayButtonSync>;
@@ -49,7 +49,7 @@ export function usePlayButtonSync(
   }, [pauseMedia]);
 
   const playOrPauseAudio = useCallback(() => {
-    const player = playerRef.current
+    const player = playerRef.current;
     if (!player) return;
     player.paused ? player.play() : player.pause();
   }, []);

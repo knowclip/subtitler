@@ -1,5 +1,5 @@
 import { MouseEvent } from "react";
-import { msToSeconds } from "./waveform";
+import { msToSeconds } from "./utils";
 import { WaveformState } from "./WaveformState";
 
 if (!process.browser) (global as any).Event = Object

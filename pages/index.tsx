@@ -1,14 +1,14 @@
 import "plyr-react/dist/plyr.css";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import Waveform from "../components/Waveform";
 import styles from "../styles/Home.module.css";
 import { usePrevious } from "../utils/usePrevious";
-import { useWaveformImages } from "../utils/useWaveformImages";
 import { Media } from "../components/Media";
 import { ffmpeg, getDuration } from "../utils/ffmpeg";
 import { fetchFile } from "@ffmpeg/ffmpeg";
 import { usePlayButtonSync } from "../utils/usePlayButtonSync";
-import { useWaveform } from "../utils/useWaveform";
+import Waveform from "../waveform/Waveform";
+import { useWaveform } from "../waveform/useWaveform";
+import { useWaveformImages } from "../waveform/useWaveformImages";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";

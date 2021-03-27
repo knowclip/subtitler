@@ -7,9 +7,9 @@ import {
   SELECTION_BORDER_MILLISECONDS,
   setCursorX,
   WAVEFORM_HEIGHT,
-} from "../utils/waveform";
-import { WAVEFORM_SEGMENT_SECONDS } from "../utils/useWaveformImages";
-import { WaveformAction, WaveformInterface } from "../utils/useWaveform";
+} from "./utils";
+import { WAVEFORM_SEGMENT_SECONDS } from "./useWaveformImages";
+import { WaveformAction, WaveformInterface } from "./useWaveform";
 import {
   EventHandler,
   MutableRefObject,
@@ -20,8 +20,9 @@ import {
 import WaveformMousedownEvent, {
   WaveformDragAction,
   WaveformDragEvent,
-} from "../utils/WaveformEvent";
-import { WaveformSelection, WaveformState } from "../utils/WaveformState";
+} from "./WaveformEvent";
+import { WaveformSelection, WaveformState } from "./WaveformState";
+import css from "./Waveform.module.scss";
 
 export default function Waveform({
   waveform,
@@ -36,7 +37,7 @@ export default function Waveform({
 }) {
   const height = WAVEFORM_HEIGHT; // + subtitles.totalTracksCount * SUBTITLES_CHUNK_HEIGHT
 
-  const { viewBoxStartMs, pixelsPerSecond } = waveform.state;
+  const { viewBoxStartMs, pixelsPerSecond, pendingAction } = waveform.state;
   const { handleMouseDown, pendingActionRef } = useWaveformMouseActions(
     waveform.svgRef,
     waveform.state,
@@ -47,9 +48,12 @@ export default function Waveform({
   return (
     <svg
       ref={waveform.svgRef}
-      viewBox={getViewBoxString(msToPixels(viewBoxStartMs, pixelsPerSecond), WAVEFORM_HEIGHT)}
+      viewBox={getViewBoxString(
+        msToPixels(viewBoxStartMs, pixelsPerSecond),
+        WAVEFORM_HEIGHT
+      )}
       height={height}
-      style={{ background: "gray", alignSelf: "flex-start", width: '100%' }}
+      style={{ background: "gray", alignSelf: "flex-start", width: "100%" }}
       preserveAspectRatio="xMinYMin slice"
       onMouseDown={handleMouseDown}
     >
@@ -82,6 +86,14 @@ export default function Waveform({
             />
           );
         })}
+        {pendingAction && (
+          <PendingWaveformItem
+            action={pendingAction}
+            height={height}
+            rectRef={pendingActionRef}
+            pixelsPerSecond={pixelsPerSecond}
+          />
+        )}
       </g>
       <Cursor x={2000} height={height} strokeWidth={1} />
     </svg>
@@ -114,6 +126,86 @@ function Cursor({
       style={{ pointerEvents: "none" }}
     />
   );
+}
+
+const WAVEFORM_ACTION_TYPE_TO_CLASSNAMES: Record<
+  WaveformDragAction["type"],
+  string
+> = {
+  CREATE: css.waveformPendingClip,
+  MOVE: css.waveformPendingClipMove,
+  STRETCH: css.waveformPendingStretch,
+};
+function PendingWaveformItem({
+  action,
+  height,
+  rectRef,
+  pixelsPerSecond,
+}: {
+  action: WaveformDragAction;
+  height: number;
+  rectRef: MutableRefObject<SVGRectElement | null>;
+  pixelsPerSecond: number;
+}) {
+  if (action.type === "MOVE") {
+    const { start, end, clipToMove } = action;
+    const deltaX = start - end;
+
+    return (
+      <rect
+        ref={rectRef}
+        className={WAVEFORM_ACTION_TYPE_TO_CLASSNAMES[action.type]}
+        {...getClipRectProps(
+          msToPixels(clipToMove.start - deltaX, pixelsPerSecond),
+          msToPixels(clipToMove.end - deltaX, pixelsPerSecond),
+          height
+        )}
+      />
+    );
+  }
+
+  if (action.type === "STRETCH") {
+    const { start, end, clipToStretch } = action;
+    const originKey =
+      Math.abs(start - clipToStretch.start) <
+      Math.abs(start - clipToStretch.end)
+        ? "start"
+        : "end";
+    const edge = clipToStretch[originKey];
+
+    const deltaX = start - end;
+
+    return (
+      <rect
+        ref={rectRef}
+        className={WAVEFORM_ACTION_TYPE_TO_CLASSNAMES[action.type]}
+        {...getClipRectProps(
+          msToPixels(edge, pixelsPerSecond),
+          msToPixels(edge - deltaX, pixelsPerSecond),
+          height
+        )}
+      />
+    );
+  }
+  return (
+    <rect
+      ref={rectRef}
+      className={WAVEFORM_ACTION_TYPE_TO_CLASSNAMES[action.type]}
+      {...getClipRectProps(
+        msToPixels(action.start, pixelsPerSecond),
+        msToPixels(action.end, pixelsPerSecond),
+        height
+      )}
+    />
+  );
+}
+function getClipRectProps(start: number, end: number, height: number) {
+  return {
+    x: Math.min(start, end),
+    y: 0,
+    width: Math.abs(start - end),
+    height,
+  };
 }
 
 function useWaveformMouseActions(
@@ -215,7 +307,8 @@ function useWaveformMouseActions(
         );
 
         playerRef.current.currentTime = msToSeconds(newTime);
-        if (!pendingAction) setCursorX(msToPixels(newTime, pixelsPerSecond));
+        // if (!pendingAction) setCursorX(msToPixels(newTime, pixelsPerSecond));
+        setCursorX(msToPixels(newTime, pixelsPerSecond));
       }
       if (pendingAction) {
         const finalAction = {

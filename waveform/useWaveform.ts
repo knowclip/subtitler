@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useReducer, useRef } from "react";
-import { pixelsToMs, secondsToMs } from "../utils/waveform";
-import { bound } from "./bound";
+import { pixelsToMs, secondsToMs } from "./utils";
+import { bound } from "../utils/bound";
 
 import { useWaveformMediaTimeUpdate } from "./useWaveformMediaTimeUpdate";
 import { WaveformDragAction } from "./WaveformEvent";
