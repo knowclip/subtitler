@@ -1,0 +1,79 @@
+.container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+.editorHeader {
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: space-between;
+}
+
+.headerTitle {
+  display: inline;
+  margin: 0;
+}
+
+.headerChooseDifferentFile {
+  align-self: flex-end;
+}
+
+.headerChooseDifferentFileLabel {
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+.headerChooseDifferentFileButton:focus + .headerChooseDifferentFileLabel {
+  color: blue;
+}
+.headerChooseDifferentFileButton {
+  pointer-events: none;
+  opacity: 0;
+  position: fixed;
+}
+
+.editorMain {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+.editorMainTop {
+  display: flex;
+  flex-flow: row nowrap;
+  flex: 1;
+}
+.editorMainTopAudio {
+  flex-flow: column nowrap;
+}
+
+$background-grey: #e4e4e4;
+
+.captionsListSection {
+  flex: 1;
+  padding: 1rem;
+  background-color: $background-grey;
+}
+
+.mediaSection {
+  max-width: 800px;
+  min-width: 45%;
+  width: 45%;
+
+  background: black;
+  display: flex;
+  align-items: center;
+}
+.mediaSection.audio {
+  width: auto;
+  min-width: none;
+  max-width: none;
+  background: $background-grey;
+
+}

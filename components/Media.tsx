@@ -9,21 +9,23 @@ import React, {
 } from "react";
 import { MediaSelection } from "../pages/index";
 
-const VIDEO_STYLES = { width: "100%" };
+const VIDEO_STYLES = { width: "100%", height: "100%" };
+const AUDIO_STYLES = { width: "100%" };
 
 type LoopState = boolean;
+
 
 export const Media = ({
   fileSelection,
   playerRef,
   loop,
   onTimeUpdate,
-  onMediaLoaded
+  onMediaLoaded,
 }: {
   fileSelection: MediaSelection;
   playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
   loop: LoopState;
-  onMediaLoaded: (mediaEl: HTMLAudioElement | HTMLVideoElement | null) => void,
+  onMediaLoaded: (mediaEl: HTMLAudioElement | HTMLVideoElement | null) => void;
   onTimeUpdate: (
     mediaEl: HTMLVideoElement | HTMLAudioElement,
     seeking: MutableRefObject<boolean>,
@@ -47,7 +49,7 @@ export const Media = ({
     onSeeked: seekOff,
     onLoadedMetadata: useCallback(
       (e) => {
-        onMediaLoaded(e.target)
+        onMediaLoaded(e.target);
       },
       [onMediaLoaded]
     ),
@@ -78,11 +80,7 @@ export const Media = ({
     );
   }
 
-  return (
-    <div>
-      <audio ref={playerRef} src={fileSelection.url} controls {...props} />
-    </div>
-  );
+  return <audio ref={playerRef} src={fileSelection.url} controls {...props} style={AUDIO_STYLES}/>;
 };
 function Video({
   playerRef,
@@ -98,14 +96,12 @@ function Video({
   }, []);
 
   return (
-    <div>
-      <video
-        id="player"
-        style={VIDEO_STYLES}
-        ref={playerRef as MutableRefObject<HTMLVideoElement>}
-        src={fileSelection.url}
-        {...rest}
-      />
-    </div>
+    <video
+      id="player"
+      style={VIDEO_STYLES}
+      ref={playerRef as MutableRefObject<HTMLVideoElement>}
+      src={fileSelection.url}
+      {...rest}
+    />
   );
 }
