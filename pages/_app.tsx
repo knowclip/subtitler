@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import '../styles/globals.css'
+import 'plyr/src/sass/plyr.scss'
 
 export default function MyApp({ Component, pageProps }) {
   return (

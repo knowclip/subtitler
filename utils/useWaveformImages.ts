@@ -1,13 +1,12 @@
 import { useCallback, useState } from "react";
 import { ffmpeg, getDuration } from "./ffmpeg";
 import { MediaSelection } from "../pages/index";
-import { fetchFile } from "@ffmpeg/ffmpeg";
 
 const WAVE_COLOR = "#b7cee0";
 const BG_COLOR = "#00000000";
 const CORRECTION_OFFSET = 0;
 const WAVEFORM_PNG_PIXELS_PER_SECOND = 50;
-const WAVEFORM_SEGMENT_LENGTH = 5 * 60;
+export const WAVEFORM_SEGMENT_SECONDS = 5 * 60;
 
 export function useWaveformImages() {
   const [waveformLoading, setWaveformLoading] = useState(false);
@@ -30,9 +29,8 @@ export function useWaveformImages() {
           setWaveformUrls((all) => [...all, url]);
         }
 
-        return urls;
       })
-      .then((urls) => {
+      .then(() => {
         console.log("done");
         waveformLoadSuccess();
       })
@@ -59,14 +57,13 @@ async function* getWaveformPngs(media: Blob) {
 
   const durationSeconds = await getDuration(name);
 
-  const segmentsCount = Math.ceil(durationSeconds / WAVEFORM_SEGMENT_LENGTH);
+  const segmentsCount = Math.ceil(durationSeconds / WAVEFORM_SEGMENT_SECONDS);
   const segments = [...Array(segmentsCount).keys()].map((i) => ({
-    startSeconds: i * WAVEFORM_SEGMENT_LENGTH,
-    endSeconds: Math.min(durationSeconds, (i + 1) * WAVEFORM_SEGMENT_LENGTH),
+    startSeconds: i * WAVEFORM_SEGMENT_SECONDS,
+    endSeconds: Math.min(durationSeconds, (i + 1) * WAVEFORM_SEGMENT_SECONDS),
   }));
   let i = 0;
   for (const { startSeconds, endSeconds } of segments) {
-    console.log(i, "!!!");
     const pngFileName = `output_${i}.png`;
     const startX = WAVEFORM_PNG_PIXELS_PER_SECOND * startSeconds;
     const endX = WAVEFORM_PNG_PIXELS_PER_SECOND * endSeconds;

@@ -1,5 +1,5 @@
 import "plyr-react/dist/plyr.css";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Waveform from "../components/Waveform";
 import styles from "../styles/Home.module.css";
 import { usePrevious } from "../utils/usePrevious";
@@ -7,6 +7,8 @@ import { useWaveformImages } from "../utils/useWaveformImages";
 import { Media } from "../components/Media";
 import { ffmpeg, getDuration } from "../utils/ffmpeg";
 import { fetchFile } from "@ffmpeg/ffmpeg";
+import { usePlayButtonSync } from "../utils/usePlayButtonSync";
+
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
   type: MediaType;
@@ -53,6 +55,8 @@ export default function Home() {
         setFileSelection(null);
         setFileError(fileError);
         setSelectionIsLoading(false);
+        
+        return
       }
 
       (async function () {
@@ -86,6 +90,9 @@ export default function Home() {
     [fileSelection]
   );
 
+  const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null)
+  usePlayButtonSync(50, playerRef)
+
   return (
     <div className={styles.container}>
       <main className={styles.main}>
@@ -107,17 +114,15 @@ export default function Home() {
           {fileError}
         </form>
 
-        {fileSelection && <Media fileSelection={fileSelection} />}
-
-        {fileSelection && (
-          <div className={styles.grid}>
-            <Waveform
-              durationSeconds={fileSelection.durationSeconds}
-              imageUrls={waveformUrls}
-            />
-          </div>
-        )}
       </main>
+
+      {fileSelection && <Media playerRef={playerRef} fileSelection={fileSelection} />}
+      {fileSelection && (
+        <Waveform
+          durationSeconds={fileSelection.durationSeconds}
+          imageUrls={waveformUrls}
+        />
+      )}
 
       <footer className={styles.footer}>
         <a
