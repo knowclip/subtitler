@@ -8,6 +8,7 @@ import { Media } from "../components/Media";
 import { ffmpeg, getDuration } from "../utils/ffmpeg";
 import { fetchFile } from "@ffmpeg/ffmpeg";
 import { usePlayButtonSync } from "../utils/usePlayButtonSync";
+import { useWaveform } from "../utils/useWaveform";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -55,8 +56,8 @@ export default function Home() {
         setFileSelection(null);
         setFileError(fileError);
         setSelectionIsLoading(false);
-        
-        return
+
+        return;
       }
 
       (async function () {
@@ -90,8 +91,10 @@ export default function Home() {
     [fileSelection]
   );
 
-  const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null)
-  usePlayButtonSync(50, playerRef)
+  const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const waveform = useWaveform([]);
+  const { onTimeUpdate, resetWaveformState } = waveform;
+  usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
 
   return (
     <div className={styles.container}>
@@ -114,15 +117,24 @@ export default function Home() {
           {fileError}
         </form>
 
+        {fileSelection && (
+          <Media
+            playerRef={playerRef}
+            fileSelection={fileSelection}
+            loop={false}
+            onTimeUpdate={onTimeUpdate}
+            onMediaLoaded={resetWaveformState}
+          />
+        )}
+        {fileSelection && (
+          <Waveform
+            waveform={waveform}
+            durationSeconds={fileSelection.durationSeconds}
+            imageUrls={waveformUrls}
+            playerRef={playerRef}
+          />
+        )}
       </main>
-
-      {fileSelection && <Media playerRef={playerRef} fileSelection={fileSelection} />}
-      {fileSelection && (
-        <Waveform
-          durationSeconds={fileSelection.durationSeconds}
-          imageUrls={waveformUrls}
-        />
-      )}
 
       <footer className={styles.footer}>
         <a

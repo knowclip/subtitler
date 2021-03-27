@@ -28,7 +28,6 @@ export function useWaveformImages() {
         for await (const url of getWaveformPngs(media)) {
           setWaveformUrls((all) => [...all, url]);
         }
-
       })
       .then(() => {
         console.log("done");
@@ -50,11 +49,6 @@ export function useWaveformImages() {
 
 async function* getWaveformPngs(media: Blob) {
   const name = "record.webm";
-
-  let urls: string[] = [];
-
-  console.log('STARTING LOAD!!')
-
   const durationSeconds = await getDuration(name);
 
   const segmentsCount = Math.ceil(durationSeconds / WAVEFORM_SEGMENT_SECONDS);
