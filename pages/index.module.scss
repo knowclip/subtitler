@@ -69,6 +69,10 @@ $background-grey: #f1f1f1;
 
   display: flex;
   flex-flow: column nowrap;
+
+  .editorMainTopAudio & {
+    height: 80%;
+  }
 }
 
 .captionsList {
@@ -201,10 +205,11 @@ $background-grey: #f1f1f1;
   display: flex;
   flex-flow: column;
   flex: 0 1 45%;
-}
-.mediaSection.audio {
-  width: auto;
-  min-width: none;
-  max-width: none;
-  background: $background-grey;
+  &.audio {
+    flex: 0 0;
+    width: auto;
+    min-width: none;
+    max-width: none;
+    background: $background-grey;
+  }
 }

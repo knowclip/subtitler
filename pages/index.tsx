@@ -117,24 +117,29 @@ export default function Home() {
   );
 
   const [captions, setCaptions] = useState<Caption[]>([]);
-  const prevCaptions = usePrevious(captions)
+  const prevCaptions = usePrevious(captions);
   const [waveformItems, setWaveformItems] = useState<
     WaveformSelectionExpanded[]
   >([]);
   useEffect(() => {
     if (prevCaptions !== captions) {
       // totally overwrite waveform items
-      setWaveformItems(captions.map((c, i): WaveformSelectionExpanded => ({
-        type: 'Clip',
-        index: i,
-        id: c.uuid,
-        item: {
-          id: c.uuid,
-          start: c.start,
-          end: c.end}
-      })))
+      setWaveformItems(
+        captions.map(
+          (c, i): WaveformSelectionExpanded => ({
+            type: "Clip",
+            index: i,
+            id: c.uuid,
+            item: {
+              id: c.uuid,
+              start: c.start * 1000,
+              end: c.end * 1000,
+            },
+          })
+        )
+      );
     }
-  }, [captions, prevCaptions])
+  }, [captions, prevCaptions]);
 
   const handleWaveformDrag = useCallback(
     ({ start, end, waveformState }: WaveformDragCreate) => {
@@ -166,7 +171,6 @@ export default function Home() {
     []
   );
 
-
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const waveform = useWaveform(waveformItems);
   const { onTimeUpdate, resetWaveformState } = waveform;
@@ -176,7 +180,6 @@ export default function Home() {
     const yes = confirm("Discard your work and start again?");
     if (yes) window.location.reload();
   }, []);
-
 
   const handleImportSrt: React.ChangeEventHandler<HTMLInputElement> = useCallback(
     (e) => {
