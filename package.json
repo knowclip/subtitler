@@ -15,7 +15,8 @@
     "plyr": "^3.6.4",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
-    "sass": "^1.32.8"
+    "sass": "^1.32.8",
+    "subtitle": "^4.1.0"
   },
   "license": "MIT",
   "devDependencies": {

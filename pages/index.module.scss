@@ -5,6 +5,12 @@
   flex-flow: column nowrap;
 }
 
+.hiddenFileInput {
+  pointer-events: none;
+  opacity: 0;
+  position: fixed;
+}
+
 .editorHeader {
   width: 100%;
   padding: 1rem;
@@ -33,9 +39,7 @@
   color: blue;
 }
 .headerChooseDifferentFileButton {
-  pointer-events: none;
-  opacity: 0;
-  position: fixed;
+  composes: hiddenFileInput;
 }
 
 .editorMain {
@@ -151,6 +155,16 @@ $background-grey: #f1f1f1;
   padding: 0.8rem;
   display: flex;
   justify-content: space-between;
+}
+
+.importSubtitlesInput {
+  composes: hiddenFileInput;
+}
+
+.importSubtitlesInput:focus + .importSubtitlesInputLabel,
+.importSubtitlesInputLabel:hover {
+  filter: brightness(120%);
+  cursor: pointer;
 }
 
 .actionButton {

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import cn from "classnames";
+import { fetchFile } from "@ffmpeg/ffmpeg";
+import { parseSync, stringifySync } from "subtitle";
 import styles from "../styles/Home.module.css";
 import { usePrevious } from "../utils/usePrevious";
 import { Media } from "../components/Media";
@@ -15,11 +17,11 @@ import {
   WaveformDragStretch,
 } from "../waveform/WaveformEvent";
 import css from "./index.module.scss";
-import { fetchFile } from "@ffmpeg/ffmpeg";
 import { toTimestamp } from "../waveform/toTimestamp";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
+  name: string;
   recordName: string;
   type: MediaType;
   url: string;
@@ -40,23 +42,6 @@ const caption = (start: number, end: number, text: string) => ({
   text,
   uuid: Math.random().toString(),
 });
-const captions: Caption[] = [
-  caption(45, 50, "Hey there!"),
-  caption(65, 69, "The rain in spain falls mainly on the plain"),
-  caption(78, 80, "L'amour est un oiseau rebelle"),
-  // caption(145, 150, "Hey there!"),
-  // caption(165, 169, "The rain in spain falls mainly on the plain"),
-  // caption(178, 180, "L'amour est un oiseau rebelle"),
-  // caption(245, 250, "Hey there!"),
-  // caption(265, 269, "The rain in spain falls mainly on the plain"),
-  // caption(278, 280, "L'amour est un oiseau rebelle"),
-  // caption(345, 350, "Hey there!"),
-  // caption(365, 369, "The rain in spain falls mainly on the plain"),
-  // caption(378, 380, "L'amour est un oiseau rebelle"),
-  // caption(445, 450, "Hey there!"),
-  // caption(465, 469, "The rain in spain falls mainly on the plain"),
-  // caption(478, 480, "L'amour est un oiseau rebelle"),
-];
 
 export default function Home() {
   const [fileSelection, setFileSelection] = useState<MediaSelection | null>();
@@ -109,6 +94,7 @@ export default function Home() {
             location: "LOCAL",
             url: URL.createObjectURL(file),
             type: getFileType(file),
+            name: file.name,
             recordName: recordName,
             durationSeconds: await getDuration(recordName),
           };
@@ -130,9 +116,26 @@ export default function Home() {
     []
   );
 
+  const [captions, setCaptions] = useState<Caption[]>([]);
+  const prevCaptions = usePrevious(captions)
   const [waveformItems, setWaveformItems] = useState<
     WaveformSelectionExpanded[]
   >([]);
+  useEffect(() => {
+    if (prevCaptions !== captions) {
+      // totally overwrite waveform items
+      setWaveformItems(captions.map((c, i): WaveformSelectionExpanded => ({
+        type: 'Clip',
+        index: i,
+        id: c.uuid,
+        item: {
+          id: c.uuid,
+          start: c.start,
+          end: c.end}
+      })))
+    }
+  }, [captions, prevCaptions])
+
   const handleWaveformDrag = useCallback(
     ({ start, end, waveformState }: WaveformDragCreate) => {
       const newClip = {
@@ -163,6 +166,7 @@ export default function Home() {
     []
   );
 
+
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const waveform = useWaveform(waveformItems);
   const { onTimeUpdate, resetWaveformState } = waveform;
@@ -172,6 +176,88 @@ export default function Home() {
     const yes = confirm("Discard your work and start again?");
     if (yes) window.location.reload();
   }, []);
+
+
+  const handleImportSrt: React.ChangeEventHandler<HTMLInputElement> = useCallback(
+    (e) => {
+      const { files } = e.target;
+      const file = files?.[0];
+      if (!file) return;
+
+      function readFileFromFileInput(file: File) {
+        return new Promise<string | undefined>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) =>
+            resolve(e.target?.result as string | undefined);
+          reader.onerror = (e) => reject(e);
+          reader.readAsText(file);
+        });
+      }
+
+      readFileFromFileInput(file).then((text) => {
+        console.log({ text });
+        if (!text) throw new Error("Invalid subtitles file");
+        const nodes = parseSync(text);
+        console.log({ nodes });
+        const newCaptions: Caption[] = nodes.flatMap((node) =>
+          node.type === "cue"
+            ? [
+                caption(
+                  node.data.start / 1000,
+                  node.data.end / 1000,
+                  node.data.text
+                ),
+              ]
+            : []
+        );
+        setCaptions(newCaptions);
+      });
+    },
+    []
+  );
+
+  const handleExportSrt: React.MouseEventHandler = useCallback(() => {
+    try {
+      const text = stringifySync(
+        captions.map((c) => ({
+          type: "cue",
+          data: {
+            start: c.start * 1000,
+            end: c.end * 1000,
+            text: c.text,
+          },
+        })),
+        { format: "SRT" }
+      );
+      download(fileSelection!.name.replace(/(\.*)?$/, "") + ".srt", text);
+    } catch (err) {
+      throw err;
+    }
+  }, [captions, fileSelection]);
+
+  function download(filename: string, text: string) {
+    var element = document.createElement("a");
+    element.setAttribute(
+      "href",
+      "data:text/plain;charset=utf-8," + encodeURIComponent(text)
+    );
+    element.setAttribute("download", filename);
+
+    element.style.display = "none";
+    document.body.appendChild(element);
+
+    element.click();
+
+    document.body.removeChild(element);
+  }
+
+  function removeOverlaps(captions: Caption[]): Caption[] {
+    // sort
+    const sorted = [...captions].sort((a, b) => a.start - b.start);
+
+    return [];
+    // remove overlaps
+  }
 
   if (!fileSelection)
     return (
@@ -266,10 +352,26 @@ export default function Home() {
               ))}
             </section>
             <section className={css.captionsMenu}>
-              <button className={css.secondaryActionButton}>
+              <input
+                className={css.importSubtitlesInput}
+                type="file"
+                id="import-subtitles-file"
+                accept=".srt"
+                onChange={handleImportSrt}
+              ></input>
+              <label
+                className={cn(
+                  css.importSubtitlesInputLabel,
+                  css.secondaryActionButton
+                )}
+                htmlFor="import-subtitles-file"
+              >
                 import subtitles file
-              </button>
-              <button className={css.primaryActionButton}>
+              </label>
+              <button
+                className={css.primaryActionButton}
+                onClick={handleExportSrt}
+              >
                 export subtitles to .srt
               </button>
             </section>
