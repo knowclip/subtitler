@@ -72,7 +72,6 @@ export const Media = ({
   if (fileSelection.type === "VIDEO") {
     return (
       <Video
-        key={fileSelection.url}
         playerRef={playerRef}
         fileSelection={fileSelection}
         {...props}
@@ -92,8 +91,9 @@ function Video({
 } & VideoHTMLAttributes<HTMLVideoElement>) {
   const plyr = useRef<Plyr | null>(null);
   useEffect(() => {
+    plyr.current?.destroy()
     plyr.current = new Plyr("#player");
-  }, []);
+  }, [fileSelection]);
 
   return (
     <video

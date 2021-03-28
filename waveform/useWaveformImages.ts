@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { ffmpeg, getDuration } from "../utils/ffmpeg";
-import { MediaSelection } from "../pages/index";
+import { toTimestamp } from "./toTimestamp";
 
 const WAVE_COLOR = "#b7cee0";
 const BG_COLOR = "#00000000";
@@ -17,26 +17,26 @@ export function useWaveformImages() {
     setWaveformLoading(false);
   }, []);
 
-  const loadWaveformImages = useCallback((fileSelection: MediaSelection) => {
+  const loadWaveformImages = useCallback(async (recordName: string) => {
     setError(null);
     setWaveformLoading(true);
     setWaveformUrls([]);
-    fetch(fileSelection.url)
-      .then((response) => response.blob())
-      .then(async (media) => {
-        console.log("transcoding");
-        for await (const url of getWaveformPngs(media)) {
-          setWaveformUrls((all) => [...all, url]);
-        }
-      })
-      .then(() => {
-        console.log("done");
-        waveformLoadSuccess();
-      })
-      .catch((err) => {
-        setError(String(err));
-        setWaveformLoading(false);
-      });
+
+    try {
+      console.log("transcoding");
+      for await (const url of getWaveformPngs(recordName)) {
+        setWaveformUrls((all) => {
+          console.log(all.length + 1);
+          return [...all, url];
+        });
+      }
+
+      console.log("done");
+      waveformLoadSuccess();
+    } catch (err) {
+      setError(String(err));
+      setWaveformLoading(false);
+    }
   }, []);
 
   return {
@@ -47,9 +47,8 @@ export function useWaveformImages() {
   };
 }
 
-async function* getWaveformPngs(media: Blob) {
-  const name = "record.webm";
-  const durationSeconds = await getDuration(name);
+async function* getWaveformPngs(recordName: string) {
+  const durationSeconds = await getDuration(recordName);
 
   const segmentsCount = Math.ceil(durationSeconds / WAVEFORM_SEGMENT_SECONDS);
   const segments = [...Array(segmentsCount).keys()].map((i) => ({
@@ -68,7 +67,7 @@ async function* getWaveformPngs(media: Blob) {
       "-to",
       toTimestamp(endSeconds * 1000),
       "-i",
-      name,
+      recordName,
       "-filter_complex",
       [
         `[0:a]aformat=channel_layouts=mono,`,
@@ -89,18 +88,6 @@ async function* getWaveformPngs(media: Blob) {
   }
 }
 
-function zeroPad(zeroes: number, value: any) {
+export function zeroPad(zeroes: number, value: any) {
   return String(value).padStart(zeroes, "0");
-}
-
-function toTimestamp(
-  milliseconds: number,
-  unitsSeparator = ":",
-  millisecondsSeparator = "."
-) {
-  const millisecondsStamp = zeroPad(3, Math.round(milliseconds % 1000));
-  const secondsStamp = zeroPad(2, Math.floor(milliseconds / 1000) % 60);
-  const minutesStamp = zeroPad(2, Math.floor(milliseconds / 1000 / 60) % 60);
-  const hoursStamp = zeroPad(2, Math.floor(milliseconds / 1000 / 60 / 60));
-  return `${hoursStamp}${unitsSeparator}${minutesStamp}${unitsSeparator}${secondsStamp}${millisecondsSeparator}${millisecondsStamp}`;
 }

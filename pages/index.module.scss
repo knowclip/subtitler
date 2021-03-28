@@ -28,7 +28,8 @@
   margin-bottom: 1rem;
   cursor: pointer;
 }
-.headerChooseDifferentFileButton:focus + .headerChooseDifferentFileLabel {
+.headerChooseDifferentFileButton:focus + .headerChooseDifferentFileLabel,
+.headerChooseDifferentFile:hover {
   color: blue;
 }
 .headerChooseDifferentFileButton {
@@ -39,12 +40,15 @@
 
 .editorMain {
   width: 100%;
+  height: 100%;
   flex: 1;
   display: flex;
   flex-flow: column nowrap;
 }
 
 .editorMainTop {
+  height: 100%;
+  height: 60vh;
   display: flex;
   flex-flow: row nowrap;
   flex: 1;
@@ -53,27 +57,140 @@
   flex-flow: column nowrap;
 }
 
-$background-grey: #e4e4e4;
+$background-grey: #f1f1f1;
 
-.captionsListSection {
+.captionsSection {
   flex: 1;
-  padding: 1rem;
   background-color: $background-grey;
+
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+.captionsList {
+  flex: 1;
+  display: flex;
+  flex-flow: column nowrap;
+  overflow: auto;
+  height: 100%;
+  align-items: center;
+}
+
+.captionTile {
+  max-width: 800px;
+  width: 100%;
+  margin: 0.2rem;
+  padding: 0.4rem;
+  border-radius: 0.2rem;
+
+  background-color: #f9f9f9;
+  border: solid 1px rgba(0, 0, 0, 0.1);
+  color: rgb(100, 100, 100);
+
+  display: flex;
+  flex-flow: column nowrap;
+}
+.captionTileMain {
+  display: flex;
+}
+
+.captionTileMenu {
+  display: flex;
+  justify-content: space-between;
+
+  opacity: 0;
+
+  transition: opacity .1s;
+  .captionTile:focus-within &,
+  .captionTile:hover & {
+    opacity: 1;
+  }
+}
+.captionTileMenuLeft {
+
+}
+.captionTileMenuLeft {
+  
+}
+
+.captionText,
+.captionForm {
+  flex: 1;
+  min-height: 5rem;
+  padding: 0.4rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.captionForm {
+  display: none;
+
+  &.editing {
+    display: block;
+  }
+}
+.captionTextArea {
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: none;
+}
+
+.captionTiming {
+  order: 2;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+}
+
+
+.captionsMenu {
+  flex: 0 1;
+  padding: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.actionButton {
+  border: 0;
+  padding: 0.4rem 0.8rem;
+  font-size: 1.4rem;
+  border-radius: 1rem;
+  color: #f7f7f7;
+  box-shadow: rgb(0 0 0 / 40%) 1px 2px 4px;
+
+  transition: all .2s;
+
+  &:hover {
+    filter: brightness(120%);
+    cursor: pointer;
+  }
+}
+.primaryActionButton {
+  composes: actionButton;
+  background-color: #215a88;
+  color: #f7f7f7;
+
+}
+.secondaryActionButton {
+  composes: actionButton;
+  background-color: #f1f1f1;
+  color: #757575;
 }
 
 .mediaSection {
   max-width: 800px;
-  min-width: 45%;
-  width: 45%;
 
   background: black;
   display: flex;
-  align-items: center;
+  flex-flow: column;
+  flex: 0 1 45%;
 }
 .mediaSection.audio {
   width: auto;
   min-width: none;
   max-width: none;
   background: $background-grey;
-
 }

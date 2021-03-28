@@ -16,7 +16,7 @@ export const ffmpeg = createFFmpeg({
 
 export const getDuration = async (recordName: string) => {
   const duration = getLatestDuration().promise;
-  await ffmpeg.run("-i", recordName, "2>&1", "output.txt");
+  await ffmpeg.run("-i", recordName, "2>&1");
   return await duration;
 };
 
