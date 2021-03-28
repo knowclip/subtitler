@@ -18,6 +18,7 @@ import {
 } from "../waveform/WaveformEvent";
 import css from "./index.module.scss";
 import { toTimestamp } from "../waveform/toTimestamp";
+import scrollIntoView from "scroll-into-view-if-needed";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -173,8 +174,14 @@ export default function Home() {
 
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const waveform = useWaveform(waveformItems);
-  const { onTimeUpdate, resetWaveformState } = waveform;
+  const {
+    onTimeUpdate,
+    resetWaveformState,
+    state: { selection },
+  } = waveform;
   usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
+
+  const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
 
   const reload = useCallback(() => {
     const yes = confirm("Discard your work and start again?");
@@ -262,6 +269,20 @@ export default function Home() {
     // remove overlaps
   }
 
+  const setMediaCurrentTime = useCallback(
+    (seconds: number) => {
+      console.log("go to", seconds);
+      if (playerRef.current) playerRef.current.currentTime = seconds;
+    },
+    [playerRef]
+  );
+  const previousHighlightedClip = usePrevious(highlightedClipId);
+  useEffect(() => {
+    if (highlightedClipId && previousHighlightedClip !== highlightedClipId) {
+      const tile = document.getElementById(highlightedClipId);
+      if (tile) scrollIntoView(tile, { behavior: "smooth", scrollMode: "if-needed", block: 'start' });
+    }
+  }, [highlightedClipId, previousHighlightedClip]);
   if (!fileSelection)
     return (
       <div className={styles.container}>
@@ -351,7 +372,13 @@ export default function Home() {
                 </p>
               )}
               {captions.map((caption, i) => (
-                <CaptionTile key={caption.uuid} index={i} caption={caption} />
+                <CaptionTile
+                  key={caption.uuid}
+                  index={i}
+                  caption={caption}
+                  highlighted={caption.uuid === highlightedClipId}
+                  setMediaCurrentTime={setMediaCurrentTime}
+                />
               ))}
             </section>
             <section className={css.captionsMenu}>
@@ -420,9 +447,22 @@ function getFileType(file: File) {
   return file.type.startsWith("audio") ? "AUDIO" : "VIDEO";
 }
 
-function CaptionTile({ caption }: { caption: Caption; index: number }) {
-  const { start, end, text } = caption;
+function CaptionTile({
+  caption,
+  highlighted,
+  setMediaCurrentTime,
+}: {
+  caption: Caption;
+  index: number;
+  highlighted: boolean;
+  setMediaCurrentTime: (seconds: number) => void;
+}) {
+  const { start, end, text, uuid } = caption;
   const [editing, setEditing] = useState(false);
+
+  const highlightClip = useCallback(() => {
+    setMediaCurrentTime(start);
+  }, [setMediaCurrentTime, start]);
 
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -443,8 +483,13 @@ function CaptionTile({ caption }: { caption: Caption; index: number }) {
   const handleClickDeleteButton = useCallback(() => {
     // setEditing(false);
   }, []);
+
   return (
-    <article className={css.captionTile}>
+    <article
+      id={uuid}
+      className={cn(css.captionTile, { [css.highlighted]: highlighted })}
+      onClick={highlighted ? undefined : highlightClip}
+    >
       <div className={css.captionTileMain}>
         <div className={css.captionTiming}>
           {toCleanTimestamp(start)} - {toCleanTimestamp(end)}
@@ -454,7 +499,7 @@ function CaptionTile({ caption }: { caption: Caption; index: number }) {
             className={css.captionText}
             onDoubleClick={handleDoubleClickText}
           >
-            {caption.text}
+            {text}
           </div>
         )}
 
@@ -464,7 +509,7 @@ function CaptionTile({ caption }: { caption: Caption; index: number }) {
             onBlur={handleBlurTextInput}
             ref={textAreaRef}
           >
-            {caption.text}
+            {text}
           </textarea>
         </form>
       </div>

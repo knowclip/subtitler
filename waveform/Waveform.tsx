@@ -34,6 +34,7 @@ type WaveformEventHandlers = {
   onWaveformDrag: (action: WaveformDragCreate) => void;
   onClipDrag: (action: WaveformDragMove) => void;
   onClipEdgeDrag: (action: WaveformDragStretch) => void;
+  onClipSelect?: (id: string) => void
 };
 
 export default function Waveform({
@@ -50,7 +51,7 @@ export default function Waveform({
 } & WaveformEventHandlers) {
   const height = WAVEFORM_HEIGHT; // + subtitles.totalTracksCount * SUBTITLES_CHUNK_HEIGHT
 
-  const { viewBoxStartMs, pixelsPerSecond, pendingAction } = waveform.state;
+  const { viewBoxStartMs, pixelsPerSecond, pendingAction, selection } = waveform.state;
   const { handleMouseDown, pendingActionRef } = useWaveformMouseActions({
     svgRef: waveform.svgRef,
     state: waveform.state,
@@ -59,7 +60,7 @@ export default function Waveform({
     ...waveformEventHandlers,
   });
 
-  const highlightedClipId = null;
+  const highlightedClipId = selection?.type === 'Clip' ? selection.id : null;
   const clips = useMemo(
     () =>
       waveform.waveformItems.flatMap((item) =>
@@ -88,27 +89,6 @@ export default function Waveform({
           width={secondsToPixels(durationSeconds, pixelsPerSecond)}
           height={height}
         />
-        {imageUrls.map((url, i) => {
-          const startSeconds = i * WAVEFORM_SEGMENT_SECONDS;
-          const endSeconds = Math.min(
-            (i + 1) * WAVEFORM_SEGMENT_SECONDS,
-            durationSeconds
-          );
-          return (
-            <image
-              key={url}
-              xlinkHref={url}
-              // style={{ pointerEvents: "none" }}
-              x={secondsToPixels(startSeconds, pixelsPerSecond)}
-              preserveAspectRatio="none"
-              width={secondsToPixels(
-                endSeconds - startSeconds,
-                pixelsPerSecond
-              )}
-              height={WAVEFORM_HEIGHT}
-            />
-          );
-        })}
         <Clips
           clips={clips}
           highlightedClipId={highlightedClipId}
@@ -125,6 +105,27 @@ export default function Waveform({
           />
         )}
       </g>
+      {imageUrls.map((url, i) => {
+          const startSeconds = i * WAVEFORM_SEGMENT_SECONDS;
+          const endSeconds = Math.min(
+            (i + 1) * WAVEFORM_SEGMENT_SECONDS,
+            durationSeconds
+          );
+          return (
+            <image
+              key={url}
+              xlinkHref={url}
+              style={{ pointerEvents: "none" }}
+              x={secondsToPixels(startSeconds, pixelsPerSecond)}
+              preserveAspectRatio="none"
+              width={secondsToPixels(
+                endSeconds - startSeconds,
+                pixelsPerSecond
+              )}
+              height={WAVEFORM_HEIGHT}
+            />
+          );
+        })}
       <Cursor x={2000} height={height} strokeWidth={1} />
     </svg>
   );

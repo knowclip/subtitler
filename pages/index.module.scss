@@ -82,6 +82,7 @@ $background-grey: #f1f1f1;
   overflow: auto;
   height: 100%;
   align-items: center;
+  padding: .4rem;
 }
 
 .captionTile {
@@ -97,6 +98,12 @@ $background-grey: #f1f1f1;
 
   display: flex;
   flex-flow: column nowrap;
+
+  &.highlighted {
+    background-color: white;
+    border-color: #a7c0d6;
+    box-shadow: rgb(0 0 0 / 30%) 1px 1px 2px;
+  }
 }
 .captionTileMain {
   display: flex;
