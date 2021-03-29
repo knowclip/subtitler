@@ -3,22 +3,13 @@ export type WaveformState = {
   cursorMs: number;
   viewBoxStartMs: number;
   pixelsPerSecond: number;
-  selection: WaveformSelection | null;
+  selection: WaveformItem | null;
   pendingAction: import("./WaveformEvent").WaveformDragAction | null;
 };
 
-export type WaveformSelection =
-  | { type: "Clip"; index: number; id: string }
-  | { type: "Preview"; index: number; cardBaseIndex: number };
-
-export type WaveformSelectionExpanded =
-  | { type: "Clip"; index: number; item: Clip; id: string }
-  | {
-      type: "Preview";
-      index: number;
-      item: SubtitlesCardBase;
-      cardBaseIndex: number;
-    };
+export type WaveformItem =
+  | { type: "Clip"; index: number; id: string, start: number, end: number }
+  | { type: "Preview"; index: number; cardBaseIndex: number, start: number, end: number };
 
 export type Clip = { id: string, start: number, end: number };
 type SubtitlesCardBase = any;

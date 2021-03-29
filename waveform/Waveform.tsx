@@ -25,7 +25,7 @@ import WaveformMousedownEvent, {
   WaveformDragMove,
   WaveformDragStretch,
 } from "./WaveformEvent";
-import { WaveformSelection, WaveformState } from "./WaveformState";
+import { WaveformItem, WaveformState } from "./WaveformState";
 import css from "./Waveform.module.scss";
 import { getClipRectProps } from "./getClipRectProps";
 import { Clips } from "./WaveformClips";
@@ -34,7 +34,7 @@ type WaveformEventHandlers = {
   onWaveformDrag: (action: WaveformDragCreate) => void;
   onClipDrag: (action: WaveformDragMove) => void;
   onClipEdgeDrag: (action: WaveformDragStretch) => void;
-  onClipSelect?: (id: string) => void
+  onClipSelect?: (id: string) => void;
 };
 
 export default function Waveform({
@@ -51,7 +51,12 @@ export default function Waveform({
 } & WaveformEventHandlers) {
   const height = WAVEFORM_HEIGHT; // + subtitles.totalTracksCount * SUBTITLES_CHUNK_HEIGHT
 
-  const { viewBoxStartMs, pixelsPerSecond, pendingAction, selection } = waveform.state;
+  const {
+    viewBoxStartMs,
+    pixelsPerSecond,
+    pendingAction,
+    selection,
+  } = waveform.state;
   const { handleMouseDown, pendingActionRef } = useWaveformMouseActions({
     svgRef: waveform.svgRef,
     state: waveform.state,
@@ -60,12 +65,9 @@ export default function Waveform({
     ...waveformEventHandlers,
   });
 
-  const highlightedClipId = selection?.type === 'Clip' ? selection.id : null;
+  const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
   const clips = useMemo(
-    () =>
-      waveform.waveformItems.flatMap((item) =>
-        item.type === "Clip" ? [item.item] : []
-      ),
+    () => waveform.waveformItems.filter((item): item is WaveformItem  & {type: "Clip"} => item.type === "Clip"),
     [waveform.waveformItems]
   );
 
@@ -106,26 +108,23 @@ export default function Waveform({
         )}
       </g>
       {imageUrls.map((url, i) => {
-          const startSeconds = i * WAVEFORM_SEGMENT_SECONDS;
-          const endSeconds = Math.min(
-            (i + 1) * WAVEFORM_SEGMENT_SECONDS,
-            durationSeconds
-          );
-          return (
-            <image
-              key={url}
-              xlinkHref={url}
-              style={{ pointerEvents: "none" }}
-              x={secondsToPixels(startSeconds, pixelsPerSecond)}
-              preserveAspectRatio="none"
-              width={secondsToPixels(
-                endSeconds - startSeconds,
-                pixelsPerSecond
-              )}
-              height={WAVEFORM_HEIGHT}
-            />
-          );
-        })}
+        const startSeconds = i * WAVEFORM_SEGMENT_SECONDS;
+        const endSeconds = Math.min(
+          (i + 1) * WAVEFORM_SEGMENT_SECONDS,
+          durationSeconds
+        );
+        return (
+          <image
+            key={url}
+            xlinkHref={url}
+            style={{ pointerEvents: "none" }}
+            x={secondsToPixels(startSeconds, pixelsPerSecond)}
+            preserveAspectRatio="none"
+            width={secondsToPixels(endSeconds - startSeconds, pixelsPerSecond)}
+            height={WAVEFORM_HEIGHT}
+          />
+        );
+      })}
       <Cursor x={2000} height={height} strokeWidth={1} />
     </svg>
   );
@@ -427,7 +426,7 @@ function getWaveformMousedownAction(
 
 function getTimeAfterMouseUp(
   pendingAction: WaveformDragAction | null,
-  waveformSelection: WaveformSelection | null,
+  waveformSelection: WaveformItem | null,
   dataset: DOMStringMap,
   mouseMilliseconds: number
 ) {

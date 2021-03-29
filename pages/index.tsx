@@ -1,7 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import cn from "classnames";
 import { fetchFile } from "@ffmpeg/ffmpeg";
 import { parseSync, stringifySync } from "subtitle";
+import { v4 } from "uuid";
 import styles from "../styles/Home.module.css";
 import { usePrevious } from "../utils/usePrevious";
 import { Media } from "../components/Media";
@@ -10,7 +17,7 @@ import { usePlayButtonSync } from "../utils/usePlayButtonSync";
 import Waveform from "../waveform/Waveform";
 import { useWaveform } from "../waveform/useWaveform";
 import { useWaveformImages } from "../waveform/useWaveformImages";
-import { WaveformSelectionExpanded } from "../waveform/WaveformState";
+import { WaveformItem } from "../waveform/WaveformState";
 import {
   WaveformDragCreate,
   WaveformDragMove,
@@ -19,7 +26,12 @@ import {
 import css from "./index.module.scss";
 import { toTimestamp } from "../waveform/toTimestamp";
 import scrollIntoView from "scroll-into-view-if-needed";
-import { msToSeconds, secondsToMs } from "../waveform/utils";
+import {
+  CLIP_THRESHOLD_MILLSECONDS,
+  msToSeconds,
+  secondsToMs,
+} from "../waveform/utils";
+import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -32,17 +44,15 @@ export type MediaSelection = {
 type MediaType = "VIDEO" | "AUDIO";
 
 type Caption = {
-  start: number;
-  end: number;
   text: string;
   uuid: string;
 };
 
-const caption = (start: number, end: number, text: string) => ({
-  start,
-  end,
+const newId = () => v4();
+
+const caption = (text: string): Caption => ({
   text,
-  uuid: Math.random().toString(),
+  uuid: newId(),
 });
 
 export default function Home() {
@@ -60,7 +70,6 @@ export default function Home() {
   const prevFileSelection = usePrevious(fileSelection);
   useEffect(() => {
     if (fileSelection !== prevFileSelection) {
-      console.log({ prevFileSelection, fileSelection });
       return;
     }
   }, [fileSelection, prevFileSelection]);
@@ -70,7 +79,6 @@ export default function Home() {
       setSelectionIsLoading(true);
       const { files } = e.target;
       const file = files?.[0];
-      console.log({ file });
 
       const fileBytes = file?.size || 0;
       const gigabytes = fileBytes / 1024 / 1024 / 1024;
@@ -90,7 +98,7 @@ export default function Home() {
         try {
           if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-          const recordName = Math.random().toString() + ".webm";
+          const recordName = newId() + ".webm";
           ffmpeg.FS("writeFile", recordName, await fetchFile(file));
           const fileSelection: MediaSelection = {
             location: "LOCAL",
@@ -101,7 +109,6 @@ export default function Home() {
             durationSeconds: await getDuration(recordName),
           };
           setFileSelection(fileSelection);
-          console.log({ file });
 
           setSelectionIsLoading(false);
           setFileError(null);
@@ -118,51 +125,46 @@ export default function Home() {
     []
   );
 
-  const [captions, setCaptions] = useState<Caption[]>([]);
-  const prevCaptions = usePrevious(captions);
-  const [waveformItems, setWaveformItems] = useState<
-    WaveformSelectionExpanded[]
-  >([]);
-  useEffect(() => {
-    if (prevCaptions !== captions) {
-      // totally overwrite waveform items
-      setWaveformItems(
-        captions.map(
-          (c, i): WaveformSelectionExpanded => ({
-            type: "Clip",
-            index: i,
-            id: c.uuid,
-            item: {
-              id: c.uuid,
-              start: c.start * 1000,
-              end: c.end * 1000,
-            },
-          })
-        )
-      );
-    }
-  }, [captions, prevCaptions]);
+  const [captions, setCaptions] = useState<Record<string, Caption>>({});
+  const captionIds = useMemo(() => Object.keys(captions), [captions]);
+  const [waveformItems, setWaveformItems] = useState<WaveformItem[]>([]);
 
   const handleWaveformDrag = useCallback(
-    ({ start, end, waveformState }: WaveformDragCreate) => {
-      const newClip = {
-        start: Math.min(start, end),
-        end: Math.max(start, end),
-        id: Math.random().toString(),
-        type: "Clip",
-      };
+    ({ start: startRaw, end: endRaw, waveformState }: WaveformDragCreate) => {
+      const start = Math.min(startRaw, endRaw);
+      const end = Math.max(startRaw, endRaw);
+
+      if (end - start < CLIP_THRESHOLD_MILLSECONDS) return;
+
+      const id = newId();
       setWaveformItems((items) =>
         [
           ...items,
           {
             type: "Clip" as const,
-            id: newClip.id,
-            item: newClip,
+            start,
+            end,
+            id,
           },
         ]
-          .sort((a, b) => a.item.start - b.item.start)
+          .sort((a, b) => a.start - b.start)
           .map((item, i) => ({ ...item, index: i }))
       );
+
+      setCaptions((captions) => ({
+        ...captions,
+        [id]: {
+          uuid: id,
+          text: "",
+        },
+      }));
+
+      setTimeout(() => {
+        const button: HTMLTextAreaElement | null = document.querySelector(
+          `#${getCaptionArticleId(id)} button`
+        );
+        button?.click();
+      }, 0);
     },
     []
   );
@@ -171,6 +173,20 @@ export default function Home() {
   const handleClipEdgeDrag = useCallback(
     ({ start, end }: WaveformDragStretch) => {},
     []
+  );
+
+  const deleteCaption = useCallback(
+    (id: string) => {
+      setCaptions((captions) => {
+        const newCaptions = { ...captions };
+        delete newCaptions[id];
+        return newCaptions;
+      });
+      setWaveformItems((items) =>
+        items.filter((item) => !(item.type === "Clip" && item.id === id))
+      );
+    },
+    [setCaptions]
   );
 
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
@@ -206,45 +222,60 @@ export default function Home() {
       }
 
       readFileFromFileInput(file).then((text) => {
-        console.log({ text });
         if (!text) throw new Error("Invalid subtitles file");
         const nodes = parseSync(text);
-        console.log({ nodes });
-        const newCaptions: Caption[] = nodes.flatMap((node) =>
-          node.type === "cue"
-            ? [
-                caption(
-                  msToSeconds(node.data.start),
-                  msToSeconds(node.data.end),
-                  node.data.text
-                ),
-              ]
-            : []
+        const { newCaptions, newWaveformItems } = nodes.reduce(
+          (acc, node, index) => {
+            if (node.type === "cue") {
+              const newCaption = caption(node.data.text);
+              acc.newCaptions[newCaption.uuid] = newCaption;
+              acc.newWaveformItems.push({
+                type: "Clip",
+                id: newCaption.uuid,
+                index,
+                start: node.data.start,
+                end: node.data.end,
+              });
+            }
+
+            return acc;
+          },
+
+          {
+            newCaptions: {} as Record<string, Caption>,
+            newWaveformItems: [] as WaveformItem[],
+          }
         );
         setCaptions(newCaptions);
+        setWaveformItems(newWaveformItems);
       });
     },
-    []
+    [setCaptions, setWaveformItems]
   );
 
   const handleExportSrt: React.MouseEventHandler = useCallback(() => {
     try {
-      const text = stringifySync(
-        captions.map((c) => ({
-          type: "cue",
-          data: {
-            start: secondsToMs(c.start),
-            end: secondsToMs(c.end),
-            text: c.text,
-          },
-        })),
-        { format: "SRT" }
+      const nodes = Object.values(waveformItems).flatMap((c) =>
+        c.type === "Clip"
+          ? [
+              {
+                type: "cue" as const,
+                data: {
+                  start: secondsToMs(c.start),
+                  end: secondsToMs(c.end),
+                  text: captions[c.id].text,
+                },
+              },
+            ]
+          : []
       );
+
+      const text = stringifySync(nodes, { format: "SRT" });
       download(fileSelection!.name.replace(/(\.*)?$/, "") + ".srt", text);
     } catch (err) {
       throw err;
     }
-  }, [captions, fileSelection]);
+  }, [captions, fileSelection, waveformItems]);
 
   function download(filename: string, text: string) {
     var element = document.createElement("a");
@@ -264,7 +295,7 @@ export default function Home() {
 
   function removeOverlaps(captions: Caption[]): Caption[] {
     // sort
-    const sorted = [...captions].sort((a, b) => a.start - b.start);
+    // const sorted = [...captions].sort((a, b) => a.start - b.start);
 
     return [];
     // remove overlaps
@@ -272,7 +303,6 @@ export default function Home() {
 
   const setMediaCurrentTime = useCallback(
     (seconds: number) => {
-      console.log("go to", seconds);
       if (playerRef.current) playerRef.current.currentTime = seconds;
     },
     [playerRef]
@@ -280,19 +310,79 @@ export default function Home() {
   const previousHighlightedClip = usePrevious(highlightedClipId);
   useEffect(() => {
     if (highlightedClipId && previousHighlightedClip !== highlightedClipId) {
-      const tile = document.getElementById(highlightedClipId);
-      if (tile) scrollIntoView(tile, { behavior: "smooth", scrollMode: "if-needed", block: 'start' });
+      const tile = document.getElementById(
+        getCaptionArticleId(highlightedClipId)
+      );
+      if (tile)
+        scrollIntoView(tile, {
+          behavior: "smooth",
+          scrollMode: "if-needed",
+          block: "start",
+        });
     }
   }, [highlightedClipId, previousHighlightedClip]);
 
+  const [loopReason, setLoopReason] = useState<"EDIT_CLIP" | null>(null);
+  const handleChangeCaptionEditing = useCallback(
+    (editing: boolean, clipId: string) => {
+      setLoopReason(editing ? "EDIT_CLIP" : null);
+    },
+    []
+  );
+  const handleSubmitCaptionText = useCallback((id: string, text: string) => {
+    function changeCaptionText(id: string, text: string) {
+      setCaptions((map) => ({
+        ...map,
+        [id]: {
+          ...map[id],
+          text,
+        },
+      }));
+    }
 
+    changeCaptionText(id, text);
+  }, []);
 
-  const [loopReason, setLoopReason] = useState<"EDIT_CLIP" | null>(null)
-  // console.log({ loopReason }, '!!!')
-  const handleChangeCaptionEditing = useCallback((editing: boolean, clipId: string) => {
-    console.log({ editing})
-    setLoopReason(editing ? "EDIT_CLIP" : null)
-  }, [])
+  const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(
+    null
+  );
+  const currentCaption = highlightedClipId ? captions[highlightedClipId] : null;
+  const updateCaptionText = useCallback(() => {
+    const currentWaveformItem = selection;
+    if (
+      currentCaption &&
+      currentWaveformItem &&
+      secondsToMs(playerRef.current?.currentTime || Infinity) <
+        currentWaveformItem.end
+    )
+      setCurrentCaptionText(currentCaption.text);
+    else setCurrentCaptionText(null);
+  }, [
+    onTimeUpdate,
+    currentCaption,
+    setCurrentCaptionText,
+    playerRef,
+    selection,
+    highlightedClipId,
+  ]);
+  useEffect(() => {
+    updateCaptionText();
+  }, [
+    onTimeUpdate,
+    setCurrentCaptionText,
+    playerRef,
+    selection,
+    highlightedClipId,
+    captions,
+  ]);
+  const handleMediaTimeUpdate: typeof onTimeUpdate = useCallback(
+    (media, seeking, looping) => {
+      updateCaptionText();
+
+      onTimeUpdate(media, seeking, looping);
+    },
+    [onTimeUpdate, updateCaptionText]
+  );
 
   if (!fileSelection)
     return (
@@ -376,22 +466,35 @@ export default function Home() {
         >
           <section className={css.captionsSection}>
             <section className={css.captionsList}>
-              {!captions.length && (
+              {!captionIds.length && (
                 <p>
                   Start by <strong>clicking and dragging</strong> on the
                   waveform or <a href="#">importing</a> an .srt file.
                 </p>
               )}
-              {captions.map((caption, i) => (
-                <CaptionTile
-                  key={caption.uuid}
-                  index={i}
-                  caption={caption}
-                  highlighted={caption.uuid === highlightedClipId}
-                  setMediaCurrentTime={setMediaCurrentTime}
-                  onEditingStateChange={handleChangeCaptionEditing}
-                />
-              ))}
+              {waveformItems.flatMap((item, i) => {
+                if (item.type === "Clip") {
+                  if (!captions[item.id]) {
+                    return [];
+                  }
+                  return [
+                    <CaptionTile
+                      key={item.id}
+                      index={item.index}
+                      caption={captions[item.id]}
+                      waveformItem={item}
+                      highlighted={item.id === highlightedClipId}
+                      setMediaCurrentTime={setMediaCurrentTime}
+                      onEditingStateChange={handleChangeCaptionEditing}
+                      onSubmitText={handleSubmitCaptionText}
+                      onChangeText={setCurrentCaptionText}
+                      deleteCaption={deleteCaption}
+                    />,
+                  ];
+                }
+
+                return [];
+              })}
             </section>
             <section className={css.captionsMenu}>
               <input
@@ -427,9 +530,14 @@ export default function Home() {
               playerRef={playerRef}
               fileSelection={fileSelection}
               loop={Boolean(loopReason)}
-              onTimeUpdate={onTimeUpdate}
+              onTimeUpdate={handleMediaTimeUpdate}
               onMediaLoaded={resetWaveformState}
             />
+            <div className={css.currentCaptionText}>
+              <span className={css.currentCaptionTextInner}>
+                {currentCaptionText}
+              </span>
+            </div>
           </section>
         </div>
         <Waveform
@@ -461,55 +569,82 @@ function getFileType(file: File) {
 
 function CaptionTile({
   caption,
+  waveformItem,
   highlighted,
   setMediaCurrentTime,
-  onEditingStateChange
+  onEditingStateChange,
+  onChangeText,
+  onSubmitText,
+  deleteCaption,
 }: {
   caption: Caption;
+  waveformItem: WaveformItem;
   index: number;
   highlighted: boolean;
   setMediaCurrentTime: (seconds: number) => void;
   onEditingStateChange: (editing: boolean, id: string) => void;
+  onChangeText: (text: string) => void;
+  onSubmitText: (id: string, text: string) => void;
+  deleteCaption: (id: string) => void;
 }) {
-  const { start, end, text, uuid } = caption;
+  const { start, end } = waveformItem;
+  const { text, uuid } = caption;
   const [editing, setEditing] = useState(false);
 
+  const [inputText, setInputText] = useState(text);
+
   const highlightClip = useCallback(() => {
-    setMediaCurrentTime(start);
+    setMediaCurrentTime(msToSeconds(start));
   }, [setMediaCurrentTime, start]);
 
-  const startEditing = useCallback(() =>{
-    setEditing(true)
+  const startEditing = useCallback(() => {
+    setEditing(true);
     onEditingStateChange(true, uuid);
-  }, [onEditingStateChange, uuid])
-  const stopEditing = useCallback(() =>{
-    setEditing(false)
+  }, [onEditingStateChange, uuid]);
+  const stopEditing = useCallback(() => {
+    if (text !== inputText) onSubmitText(uuid, inputText);
+    setEditing(false);
     onEditingStateChange(false, uuid);
-  }, [onEditingStateChange, uuid])
+  }, [onEditingStateChange, uuid, inputText, text]);
 
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const prevText = usePrevious(text);
+  useEffect(() => {
+    if (prevText !== text) {
+      setInputText(text);
+    }
+  }, [prevText, text, setInputText]);
 
   const handleDoubleClickText = useCallback(() => {
     startEditing();
     setTimeout(() => textAreaRef.current?.focus(), 0);
-  }, []);
+  }, [startEditing]);
   const handleBlurTextInput = useCallback(() => {
     stopEditing();
-  }, []);
+  }, [stopEditing]);
+  const handleChangeTextInput: React.ChangeEventHandler<HTMLTextAreaElement> = useCallback(
+    (e) => {
+      setInputText(e.target.value);
+      onChangeText(e.target.value);
+    },
+    [setInputText, onChangeText]
+  );
   const handleClickEditButton = useCallback(() => {
     startEditing();
     setTimeout(() => textAreaRef.current?.focus(), 0);
-  }, []);
+  }, [startEditing]);
   const handleClickDoneButton = useCallback(() => {
     stopEditing();
-  }, []);
+  }, [stopEditing]);
   const handleClickDeleteButton = useCallback(() => {
-    // stopEditing();
-  }, []);
+    stopEditing();
+    deleteCaption(uuid);
+  }, [stopEditing, deleteCaption, uuid]);
 
   return (
     <article
-      id={uuid}
+      id={getCaptionArticleId(uuid)}
       className={cn(css.captionTile, { [css.highlighted]: highlighted })}
       onClick={highlighted ? undefined : highlightClip}
     >
@@ -517,24 +652,24 @@ function CaptionTile({
         <div className={css.captionTiming}>
           {toCleanTimestamp(start)} - {toCleanTimestamp(end)}
         </div>
-        {!editing && (
+        {
           <div
-            className={css.captionText}
+            className={cn(css.captionText, { [css.editing]: editing })}
             onDoubleClick={handleDoubleClickText}
           >
             {text}
+            <form className={cn(css.captionForm, { [css.editing]: editing })}>
+              <textarea
+                className={css.captionTextArea}
+                onFocus={startEditing}
+                onBlur={handleBlurTextInput}
+                ref={textAreaRef}
+                value={inputText}
+                onChange={handleChangeTextInput}
+              ></textarea>
+            </form>
           </div>
-        )}
-
-        <form className={cn(css.captionForm, { [css.editing]: editing })}>
-          <textarea
-            className={css.captionTextArea}
-            onBlur={handleBlurTextInput}
-            ref={textAreaRef}
-          >
-            {text}
-          </textarea>
-        </form>
+        }
       </div>
 
       <section className={css.captionTileMenu}>
@@ -570,8 +705,8 @@ function CaptionTile({
   );
 }
 
-function toCleanTimestamp(seconds: number) {
-  return toTimestamp(seconds * 1000)
+function toCleanTimestamp(milliseconds: number) {
+  return toTimestamp(milliseconds)
     .replace(/^(0+:)+0*/, "")
     .replace(/\.0+$/, "");
 }

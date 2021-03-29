@@ -128,18 +128,29 @@ $background-grey: #f1f1f1;
   
 }
 
-.captionText,
-.captionForm {
+.captionText {
   flex: 1;
   min-height: 5rem;
   padding: 0.4rem;
   line-height: 1.5;
   white-space: pre-wrap;
+  font-size: 1.2rem;
+  position: relative;
+}
+.captionText.editing {
+  color: transparent;
 }
 .captionForm {
-  display: none;
+  opacity: 0;
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  bottom: 0.4rem;
+  right: 0.4rem;
 
+  color:rgb(100, 100, 100);
   &.editing {
+    opacity: 1;
     display: block;
   }
 }
@@ -149,6 +160,7 @@ $background-grey: #f1f1f1;
   font-family: inherit;
   font-size: inherit;
   width: 100%;
+  height: 100%;
   border: 0;
   outline: 0;
   resize: none;
@@ -208,6 +220,7 @@ $background-grey: #f1f1f1;
 
 .mediaSection {
   max-width: 800px;
+  position: relative;
 
   background: black;
   display: flex;
@@ -220,4 +233,18 @@ $background-grey: #f1f1f1;
     max-width: none;
     background: $background-grey;
   }
+}
+
+.currentCaptionText {
+  color: white;
+  position: absolute;
+  bottom: 50px;
+  width: 100%;
+  text-align: center;
+  padding: 1rem 1rem 0 1rem;
+  white-space: pre-wrap;
+  font-size: 1.4rem;
+}
+.currentCaptionTextInner {
+  background-color: black;
 }

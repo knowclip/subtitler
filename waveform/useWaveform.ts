@@ -5,8 +5,7 @@ import { bound } from "../utils/bound";
 import { useWaveformMediaTimeUpdate } from "./useWaveformMediaTimeUpdate";
 import { WaveformDragAction } from "./WaveformEvent";
 import {
-  WaveformSelection,
-  WaveformSelectionExpanded,
+  WaveformItem,
   WaveformState,
 } from "./WaveformState";
 
@@ -21,10 +20,10 @@ const initialState: WaveformState = {
 
 export type WaveformInterface = ReturnType<typeof useWaveform>;
 
-export function useWaveform(waveformItems: WaveformSelectionExpanded[]) {
+export function useWaveform(waveformItems: WaveformItem[]) {
   const limitWaveformItemsToDisplayed = limitSelectorToDisplayedItems(
-    (waveformItem: WaveformSelectionExpanded) => waveformItem.item.start,
-    (waveformItem: WaveformSelectionExpanded) => waveformItem.item.end
+    (waveformItem: WaveformItem) => waveformItem.start,
+    (waveformItem: WaveformItem) => waveformItem.end
   );
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -76,7 +75,7 @@ export type SetWaveformCursorPosition = {
   type: "NAVIGATE_TO_TIME";
   ms: number;
   viewBoxStartMs?: number;
-  selection?: WaveformSelection | null;
+  selection?: WaveformItem | null;
 };
 export type WaveformAction =
   | SetWaveformCursorPosition

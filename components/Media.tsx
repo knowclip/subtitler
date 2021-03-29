@@ -25,6 +25,7 @@ export const Media = ({
   fileSelection: MediaSelection;
   playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
   loop: LoopState;
+  currentCaptionText?: string,
   onMediaLoaded: (mediaEl: HTMLAudioElement | HTMLVideoElement | null) => void;
   onTimeUpdate: (
     mediaEl: HTMLVideoElement | HTMLAudioElement,

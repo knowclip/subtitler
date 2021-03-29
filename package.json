@@ -9,6 +9,7 @@
   "dependencies": {
     "@ffmpeg/core": "^0.8.5",
     "@ffmpeg/ffmpeg": "^0.9.7",
+    "@types/uuid": "^8.3.0",
     "classnames": "^2.2.6",
     "next": "latest",
     "next-pwa": "^3.1.0",
@@ -17,7 +18,8 @@
     "react-dom": "^16.13.1",
     "sass": "^1.32.8",
     "scroll-into-view-if-needed": "^2.2.28",
-    "subtitle": "^4.1.0"
+    "subtitle": "^4.1.0",
+    "uuid": "^8.3.2"
   },
   "license": "MIT",
   "devDependencies": {
