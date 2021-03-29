@@ -19,6 +19,7 @@ import {
 import css from "./index.module.scss";
 import { toTimestamp } from "../waveform/toTimestamp";
 import scrollIntoView from "scroll-into-view-if-needed";
+import { msToSeconds, secondsToMs } from "../waveform/utils";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -213,8 +214,8 @@ export default function Home() {
           node.type === "cue"
             ? [
                 caption(
-                  node.data.start / 1000,
-                  node.data.end / 1000,
+                  msToSeconds(node.data.start),
+                  msToSeconds(node.data.end),
                   node.data.text
                 ),
               ]
@@ -232,8 +233,8 @@ export default function Home() {
         captions.map((c) => ({
           type: "cue",
           data: {
-            start: c.start * 1000,
-            end: c.end * 1000,
+            start: secondsToMs(c.start),
+            end: secondsToMs(c.end),
             text: c.text,
           },
         })),
@@ -283,6 +284,16 @@ export default function Home() {
       if (tile) scrollIntoView(tile, { behavior: "smooth", scrollMode: "if-needed", block: 'start' });
     }
   }, [highlightedClipId, previousHighlightedClip]);
+
+
+
+  const [loopReason, setLoopReason] = useState<"EDIT_CLIP" | null>(null)
+  // console.log({ loopReason }, '!!!')
+  const handleChangeCaptionEditing = useCallback((editing: boolean, clipId: string) => {
+    console.log({ editing})
+    setLoopReason(editing ? "EDIT_CLIP" : null)
+  }, [])
+
   if (!fileSelection)
     return (
       <div className={styles.container}>
@@ -378,6 +389,7 @@ export default function Home() {
                   caption={caption}
                   highlighted={caption.uuid === highlightedClipId}
                   setMediaCurrentTime={setMediaCurrentTime}
+                  onEditingStateChange={handleChangeCaptionEditing}
                 />
               ))}
             </section>
@@ -396,7 +408,7 @@ export default function Home() {
                 )}
                 htmlFor="import-subtitles-file"
               >
-                import subtitles file
+                import from file
               </label>
               <button
                 className={css.primaryActionButton}
@@ -414,7 +426,7 @@ export default function Home() {
             <Media
               playerRef={playerRef}
               fileSelection={fileSelection}
-              loop={false}
+              loop={Boolean(loopReason)}
               onTimeUpdate={onTimeUpdate}
               onMediaLoaded={resetWaveformState}
             />
@@ -451,11 +463,13 @@ function CaptionTile({
   caption,
   highlighted,
   setMediaCurrentTime,
+  onEditingStateChange
 }: {
   caption: Caption;
   index: number;
   highlighted: boolean;
   setMediaCurrentTime: (seconds: number) => void;
+  onEditingStateChange: (editing: boolean, id: string) => void;
 }) {
   const { start, end, text, uuid } = caption;
   const [editing, setEditing] = useState(false);
@@ -464,24 +478,33 @@ function CaptionTile({
     setMediaCurrentTime(start);
   }, [setMediaCurrentTime, start]);
 
+  const startEditing = useCallback(() =>{
+    setEditing(true)
+    onEditingStateChange(true, uuid);
+  }, [onEditingStateChange, uuid])
+  const stopEditing = useCallback(() =>{
+    setEditing(false)
+    onEditingStateChange(false, uuid);
+  }, [onEditingStateChange, uuid])
+
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleDoubleClickText = useCallback(() => {
-    setEditing(true);
+    startEditing();
     setTimeout(() => textAreaRef.current?.focus(), 0);
   }, []);
   const handleBlurTextInput = useCallback(() => {
-    setEditing(false);
+    stopEditing();
   }, []);
   const handleClickEditButton = useCallback(() => {
-    setEditing(true);
+    startEditing();
     setTimeout(() => textAreaRef.current?.focus(), 0);
   }, []);
   const handleClickDoneButton = useCallback(() => {
-    setEditing(false);
+    stopEditing();
   }, []);
   const handleClickDeleteButton = useCallback(() => {
-    // setEditing(false);
+    // stopEditing();
   }, []);
 
   return (

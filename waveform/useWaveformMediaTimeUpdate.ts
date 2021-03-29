@@ -1,6 +1,12 @@
 import { useCallback, MutableRefObject, Dispatch } from "react";
 import { WaveformAction } from "./useWaveform";
-import { secondsToMs, msToSeconds, pixelsToMs } from "./utils";
+import {
+  secondsToMs,
+  msToSeconds,
+  pixelsToMs,
+  setCursorX,
+  msToPixels,
+} from "./utils";
 import {
   WaveformSelection,
   WaveformSelectionExpanded,
@@ -80,6 +86,26 @@ export function useWaveformMediaTimeUpdate(
         return dispatch(action);
       }
 
+      const svgWidth = elementWidth(svg);
+      console.log(
+        {
+          state,
+          newMilliseconds,
+          svgWidth,
+          newSelection,
+          wasSeeking,
+        },
+        "viewboxsstartms",
+        viewBoxStartMsOnTimeUpdate(
+          state,
+          newMilliseconds,
+          svgWidth,
+          newSelection,
+          wasSeeking
+        )
+      );
+
+      setCursorX(msToPixels(newMilliseconds, state.pixelsPerSecond));
       dispatch({
         type: "NAVIGATE_TO_TIME",
         ms: newMilliseconds,
@@ -88,7 +114,7 @@ export function useWaveformMediaTimeUpdate(
         viewBoxStartMs: viewBoxStartMsOnTimeUpdate(
           state,
           newMilliseconds,
-          elementWidth(svg),
+          svgWidth,
           newSelection,
           wasSeeking
         ),
@@ -137,28 +163,12 @@ function viewBoxStartMsOnTimeUpdate(
   seeking: boolean
 ): number {
   if (state.pendingAction) return state.viewBoxStartMs;
-
   const visibleTimeSpan = pixelsToMs(svgWidth, state.pixelsPerSecond);
-
   const buffer = Math.round(visibleTimeSpan * 0.1);
 
   const { viewBoxStartMs, durationSeconds } = state;
   const durationMs = secondsToMs(durationSeconds);
-
   const currentRightEdge = viewBoxStartMs + visibleTimeSpan;
-
-  const leftShiftRequired = newlySetMs < viewBoxStartMs;
-  if (leftShiftRequired) {
-    return Math.max(0, newlySetMs - buffer);
-  }
-
-  const rightShiftRequired = newlySetMs >= currentRightEdge;
-  if (rightShiftRequired) {
-    return bound(newSelection ? newSelection.item.end + buffer : newlySetMs, [
-      0,
-      durationMs - visibleTimeSpan,
-    ]);
-  }
 
   if (seeking && newSelection) {
     if (newSelection.item.end + buffer >= currentRightEdge)
@@ -169,6 +179,19 @@ function viewBoxStartMsOnTimeUpdate(
 
     if (newSelection.item.start - buffer <= viewBoxStartMs)
       return Math.max(0, newSelection.item.start - buffer);
+  }
+
+  const leftShiftRequired = newlySetMs < viewBoxStartMs;
+  if (leftShiftRequired) {
+    return Math.max(0, newlySetMs - buffer);
+  }
+
+  const rightShiftRequired = newlySetMs >= currentRightEdge;
+  if (rightShiftRequired) {
+    return bound((newSelection ? newSelection.item.end : newlySetMs) + buffer, [
+      0,
+      durationMs - visibleTimeSpan,
+    ]);
   }
 
   return state.viewBoxStartMs;
