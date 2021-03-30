@@ -1,8 +1,9 @@
 import Head from 'next/head'
 import '../styles/globals.css'
 import 'plyr/src/sass/plyr.scss'
+import { AppProps } from 'next/dist/next-server/lib/router/router'
 
-export default function MyApp({ Component, pageProps }) {
+export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>

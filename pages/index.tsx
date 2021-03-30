@@ -32,6 +32,7 @@ import {
   secondsToMs,
 } from "../waveform/utils";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
+import { bound } from "../utils/bound";
 
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
@@ -168,12 +169,128 @@ export default function Home() {
     },
     []
   );
-  const handleClipDrag = useCallback(({ start, end }: WaveformDragMove) => {},
-  []);
-  const handleClipEdgeDrag = useCallback(
-    ({ start, end }: WaveformDragStretch) => {},
-    []
+  const handleClipDrag = useCallback(
+    (move: WaveformDragMove) => {
+      const { start, end, clipToMove, waveformState } = move;
+      const bounds: [number, number] = [
+        0,
+        secondsToMs(waveformState.durationSeconds),
+      ];
+      const deltaX = start - end;
+
+      const movedClip = {
+        ...clipToMove,
+        start: bound(clipToMove.start - deltaX, bounds),
+        end: bound(clipToMove.end - deltaX, bounds),
+      };
+
+      setWaveformItems((items) => {
+        const newItems: WaveformItem[] = [];
+        let i = 0;
+        for (const item of items) {
+          const idMatch = item.type === "Clip" && clipToMove.id === item.id;
+          if (idMatch) {
+            newItems.push({
+              ...item,
+              start: bound(clipToMove.start - deltaX, bounds),
+              end: bound(clipToMove.end - deltaX, bounds),
+            });
+          } else {
+            newItems.push(item);
+          }
+        }
+        updateIndexesByMutation(newItems);
+        return newItems;
+      });
+    },
+    [setWaveformItems]
   );
+  const handleClipEdgeDrag = useCallback(
+    (stretch: WaveformDragStretch) => {
+      const {
+        start,
+        end,
+        clipToStretch,
+        waveformState: { durationSeconds, pixelsPerSecond },
+      } = stretch;
+
+      const originKey =
+        Math.abs(start - clipToStretch.start) <
+        Math.abs(start - clipToStretch.end)
+          ? "start"
+          : "end";
+
+      let stretchedClip;
+      if (originKey === "start") {
+        const bounds: [number, number] = [
+          0,
+          clipToStretch.end - CLIP_THRESHOLD_MILLSECONDS,
+        ];
+        // const stretchStart = bound(start, bounds);
+        const stretchEnd = bound(end, bounds);
+        stretchedClip = {
+          ...clipToStretch,
+          start: stretchEnd,
+        };
+      } else {
+        const bounds: [number, number] = [
+          clipToStretch.start + CLIP_THRESHOLD_MILLSECONDS,
+          secondsToMs(durationSeconds),
+        ];
+        // const stretchStart = bound(start, bounds);
+        const stretchEnd = bound(end, bounds);
+        stretchedClip = {
+          ...clipToStretch,
+          end: stretchEnd,
+        };
+      }
+
+      setWaveformItems((items) => {
+        const newItems: WaveformItem[] = [];
+
+        const rangeOfStretch: number[] = [];
+
+        let i = 0;
+        for (const item of items) {
+          const idMatch = item.type === "Clip" && clipToStretch.id === item.id;
+          if (idMatch) {
+          } else {
+            newItems.push(
+              item.index === i
+                ? item
+                : {
+                    ...item,
+                    index: i,
+                  }
+            );
+          }
+
+          if (overlap(stretch, item)) rangeOfStretch.push(i);
+          i++;
+        }
+
+        const overlappedByStretch = items.slice(
+          rangeOfStretch[0],
+          rangeOfStretch[rangeOfStretch.length - 1] + 1
+        );
+
+        updateIndexesByMutation(newItems);
+        // then remove overlaps
+        return newItems;
+      });
+    },
+    [setWaveformItems]
+  );
+
+  function updateIndexesByMutation(items: WaveformItem[]) {
+    items
+      .sort((a, b) => a.start - b.start)
+      .forEach((item, i) => {
+        if (item.index !== i) items[i] = { ...item, index: i };
+      });
+
+    return items;
+  }
 
   const deleteCaption = useCallback(
     (id: string) => {
@@ -293,12 +410,22 @@ export default function Home() {
     document.body.removeChild(element);
   }
 
-  function removeOverlaps(captions: Caption[]): Caption[] {
-    // sort
-    // const sorted = [...captions].sort((a, b) => a.start - b.start);
+  function overlap(
+    a: Pick<WaveformItem, "start" | "end">,
+    b: Pick<WaveformItem, "start" | "end">
+  ) {
+    return a.start <= b.end && a.end >= b.start;
+  }
 
-    return [];
-    // remove overlaps
+  function removeOverlaps(waveformItems: WaveformItem[]): WaveformItem[] {
+    const sorted = [...waveformItems].sort((a, b) => a.start - b.start);
+
+    let index = 0;
+    for (const item of sorted) {
+      index++;
+    }
+
+    return sorted;
   }
 
   const setMediaCurrentTime = useCallback(
@@ -467,9 +594,11 @@ export default function Home() {
           <section className={css.captionsSection}>
             <section className={css.captionsList}>
               {!captionIds.length && (
-                <p>
-                  Start by <strong>clicking and dragging</strong> on the
-                  waveform or <a href="#">importing</a> an .srt file.
+                <p className={css.emptyCaptionsListHintText}>
+                  Start making captions by{" "}
+                  <strong>clicking and dragging</strong> on the waveform or{" "}
+                  <strong>import existing captions</strong> via the button
+                  below.
                 </p>
               )}
               {waveformItems.flatMap((item, i) => {
@@ -517,7 +646,7 @@ export default function Home() {
                 className={css.primaryActionButton}
                 onClick={handleExportSrt}
               >
-                export subtitles to .srt
+                save captions to file
               </button>
             </section>
           </section>

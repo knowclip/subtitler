@@ -2,7 +2,7 @@ import { MouseEvent } from "react";
 import { msToSeconds } from "./utils";
 import { WaveformState } from "./WaveformState";
 
-if (!process.browser) (global as any).Event = Object
+if (!process.browser) (global as any).Event = Object;
 
 export default class WaveformMousedownEvent extends Event {
   milliseconds: number;
@@ -45,13 +45,13 @@ export type WaveformDragMove = {
   type: "MOVE";
   start: number;
   end: number;
-  clipToMove: { id: string; start: number; end: number };
+  clipToMove: { id: string; index: number; start: number; end: number };
   waveformState: WaveformState;
 };
 export type WaveformDragStretch = {
   type: "STRETCH";
   start: number;
   end: number;
-  clipToStretch: { id: string; start: number; end: number };
+  clipToStretch: { id: string; index: number; start: number; end: number };
   waveformState: WaveformState;
 };

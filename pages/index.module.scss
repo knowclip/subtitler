@@ -82,7 +82,15 @@ $background-grey: #f1f1f1;
   overflow: auto;
   height: 100%;
   align-items: center;
-  padding: .4rem;
+  padding: 0.4rem;
+}
+.emptyCaptionsListHintText {
+  margin: 30% auto;
+  text-align: center;
+  line-height: 1.5;
+  color: rgb(120, 120, 120);
+  font-size: 1.4rem;
+  width: 70%;
 }
 
 .captionTile {
@@ -115,17 +123,15 @@ $background-grey: #f1f1f1;
 
   opacity: 0;
 
-  transition: opacity .1s;
+  transition: opacity 0.1s;
   .captionTile:focus-within &,
   .captionTile:hover & {
     opacity: 1;
   }
 }
 .captionTileMenuLeft {
-
 }
 .captionTileMenuLeft {
-  
 }
 
 .captionText {
@@ -148,7 +154,9 @@ $background-grey: #f1f1f1;
   bottom: 0.4rem;
   right: 0.4rem;
 
-  color:rgb(100, 100, 100);
+  pointer-events: none;
+
+  color: rgb(100, 100, 100);
   &.editing {
     opacity: 1;
     display: block;
@@ -171,7 +179,6 @@ $background-grey: #f1f1f1;
   padding: 0.4rem;
   font-size: 0.8rem;
 }
-
 
 .captionsMenu {
   flex: 0 1;
@@ -198,8 +205,7 @@ $background-grey: #f1f1f1;
   text-align: center;
   box-shadow: rgb(0 0 0 / 40%) 1px 2px 4px;
 
-
-  transition: all .2s;
+  transition: all 0.2s;
 
   &:hover {
     filter: brightness(120%);
@@ -210,7 +216,6 @@ $background-grey: #f1f1f1;
   composes: actionButton;
   background-color: #215a88;
   color: #f7f7f7;
-
 }
 .secondaryActionButton {
   composes: actionButton;

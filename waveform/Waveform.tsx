@@ -62,7 +62,7 @@ export default function Waveform({
     state: waveform.state,
     playerRef,
     dispatch: waveform.dispatch,
-    ...waveformEventHandlers,
+    ...waveformEventHandlers
   });
 
   const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
@@ -234,7 +234,7 @@ function useWaveformMouseActions({
   state,
   playerRef,
   dispatch,
-  onWaveformDrag,
+  ...eventHandlers
 }: {
   svgRef: React.RefObject<SVGSVGElement>;
   state: WaveformState;
@@ -344,7 +344,10 @@ function useWaveformMouseActions({
           waveformState: state,
         };
         document.dispatchEvent(new WaveformDragEvent(finalAction));
-        if (finalAction.type === "CREATE") onWaveformDrag(finalAction);
+
+        if (finalAction.type === "CREATE") eventHandlers.onWaveformDrag(finalAction);
+        if (finalAction.type === "MOVE") eventHandlers.onClipDrag(finalAction);
+        if (finalAction.type === "STRETCH") eventHandlers.onClipEdgeDrag(finalAction);
       }
     };
     document.addEventListener("mouseup", handleMouseUps);
@@ -384,7 +387,7 @@ function getWaveformMousedownAction(
   dataset: DOMStringMap,
   ms: number,
   waveform: WaveformState
-) {
+): WaveformDragAction {
   if (
     dataset &&
     dataset.clipId &&
@@ -393,11 +396,12 @@ function getWaveformMousedownAction(
       Math.abs(Number(dataset.clipEnd) - ms) <= SELECTION_BORDER_MILLISECONDS)
   ) {
     return {
-      type: "STRETCH" as const,
+      type: "STRETCH",
       start: ms,
       end: ms,
       clipToStretch: {
         id: dataset.clipId,
+        index: Number(dataset.clipIndex),
         start: Number(dataset.clipStart),
         end: Number(dataset.clipEnd),
       },
@@ -405,11 +409,12 @@ function getWaveformMousedownAction(
     };
   } else if (dataset && dataset.clipId)
     return {
-      type: "MOVE" as const,
+      type: "MOVE",
       start: ms,
       end: ms,
       clipToMove: {
         id: dataset.clipId,
+        index: Number(dataset.clipIndex),
         start: Number(dataset.clipStart),
         end: Number(dataset.clipEnd),
       },
@@ -417,7 +422,7 @@ function getWaveformMousedownAction(
     };
   else
     return {
-      type: "CREATE" as const,
+      type: "CREATE",
       start: ms,
       end: ms,
       waveformState: waveform,
