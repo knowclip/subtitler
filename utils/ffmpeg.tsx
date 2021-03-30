@@ -27,6 +27,7 @@ class StoredLogValue<T> {
   resolve: (value: T) => void;
 
   constructor() {
+    this.resolve = () => {}
     this.promise = new Promise((res) => {
       this.resolve = (value: T) => {
         res(value);
