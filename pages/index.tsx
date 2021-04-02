@@ -226,7 +226,7 @@ export default function Home() {
           ? "start"
           : "end";
 
-      let stretchedClip;
+      let stretchedClip: WaveformItem;
       if (originKey === "start") {
         const bounds: [number, number] = [
           0,
@@ -235,6 +235,7 @@ export default function Home() {
         // const stretchStart = bound(start, bounds);
         const stretchEnd = bound(end, bounds);
         stretchedClip = {
+          type: "Clip",
           ...clipToStretch,
           start: stretchEnd,
         };
@@ -246,6 +247,7 @@ export default function Home() {
         // const stretchStart = bound(start, bounds);
         const stretchEnd = bound(end, bounds);
         stretchedClip = {
+          type: "Clip",
           ...clipToStretch,
           end: stretchEnd,
         };
@@ -260,6 +262,7 @@ export default function Home() {
         for (const item of items) {
           const idMatch = item.type === "Clip" && clipToStretch.id === item.id;
           if (idMatch) {
+            newItems.push(stretchedClip)
           } else {
             newItems.push(
               item.index === i
