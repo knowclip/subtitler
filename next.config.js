@@ -1,9 +1,34 @@
-const withPWA = require('next-pwa')
-const runtimeCaching = require('next-pwa/cache')
+const withPWA = require("next-pwa");
+const runtimeCaching = require("next-pwa/cache");
 
-module.exports = withPWA({
+const configWithPWA = withPWA({
   pwa: {
-    dest: 'public',
+    dest: "public",
     runtimeCaching,
   },
-})
+});
+
+console.log("booop", configWithPWA.headers);
+
+const config = {
+  ...configWithPWA,
+  async headers() {
+    return [
+      {
+        source: "/",
+        headers: [
+          {
+            key: "Cross-Origin-Embedder-Policy",
+            value: "require-corp",
+          },
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+module.exports = config;
