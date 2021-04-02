@@ -8,8 +8,6 @@ const configWithPWA = withPWA({
   },
 });
 
-console.log("booop", configWithPWA.headers);
-
 const config = {
   ...configWithPWA,
   async headers() {
