@@ -432,14 +432,15 @@ function getWaveformMousedownAction(
 function getTimeAfterMouseUp(
   pendingAction: WaveformDragAction | null,
   waveformSelection: WaveformItem | null,
-  dataset: DOMStringMap,
+  dataset: DOMStringMap | undefined,
   mouseMilliseconds: number
 ) {
   const clipIsToBeNewlySelected =
+  dataset &&
     dataset.clipId &&
     (waveformSelection?.type !== "Clip" ||
       waveformSelection.id !== dataset.clipId);
-  if (clipIsToBeNewlySelected) {
+  if (dataset && clipIsToBeNewlySelected) {
     return Number(dataset.clipStart);
   }
 
@@ -448,7 +449,7 @@ function getTimeAfterMouseUp(
       ((dataset.clipId && !dataset.clipIsHighlighted) || dataset.chunkIndex)
   );
 
-  return !pendingAction && itemAtMouse
+  return !pendingAction && dataset && itemAtMouse
     ? Number(dataset.clipStart || dataset.chunkStart)
     : mouseMilliseconds;
 }

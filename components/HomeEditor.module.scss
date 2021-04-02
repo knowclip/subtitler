@@ -3,6 +3,8 @@
   height: 100%;
   display: flex;
   flex-flow: column nowrap;
+
+  position: absolute;
 }
 
 .hiddenFileInput {
@@ -44,10 +46,12 @@
 
 .editorMain {
   width: 100%;
-  height: 100%;
-  flex: 1;
+  // height: 100%;
+  flex: 1 1;
   display: flex;
   flex-flow: column nowrap;
+
+  height: 0;
 }
 
 .editorMainTop {
@@ -67,8 +71,7 @@ $background-grey: #f1f1f1;
   flex: 1;
   background-color: $background-grey;
 
-  display: flex;
-  flex-flow: column nowrap;
+  position: relative;
 
   .editorMainTopAudio & {
     height: 80%;
@@ -77,15 +80,12 @@ $background-grey: #f1f1f1;
 
 .captionsList {
   flex: 1;
-  display: flex;
-  flex-flow: column nowrap;
   overflow: auto;
   height: 100%;
-  align-items: center;
   padding: 0.4rem;
 }
 .emptyCaptionsListHintText {
-  margin: 30% auto;
+  margin: 10% auto;
   text-align: center;
   line-height: 1.5;
   color: rgb(120, 120, 120);
@@ -98,6 +98,10 @@ $background-grey: #f1f1f1;
   padding: 0.8rem;
   display: flex;
   justify-content: space-between;
+  position: absolute;
+  width: calc(100% - 1rem);
+  bottom: 0;
+  left: 0;
 }
 
 .importSubtitlesInput {

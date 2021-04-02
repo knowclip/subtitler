@@ -429,7 +429,7 @@ export function HomeEditor({
   );
 
   return (
-    <div>
+    <div className={css.container}>
       <header className={css.editorHeader}>
         <h1 className={css.headerTitle}>Subtitler</h1>
         <span className={css.headerChooseDifferentFile}>
