@@ -14,7 +14,6 @@ const AUDIO_STYLES = { width: "100%" };
 
 type LoopState = boolean;
 
-
 export const Media = ({
   fileSelection,
   playerRef,
