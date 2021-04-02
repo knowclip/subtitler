@@ -34,6 +34,12 @@ import {
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 import { bound } from "../utils/bound";
 
+const onMobile =
+  process.browser &&
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+
 export type MediaSelection = {
   location: "LOCAL" | "NETWORK";
   name: string;
@@ -520,6 +526,13 @@ export default function Home() {
           {(!process.browser || window.SharedArrayBuffer) && (
             <div>
               <p className={styles.description}>
+                {onMobile && (
+                  <div style={{ color: "darkred" }}>
+                    Mobile devices are currently unsupported. Try on desktop if
+                    it doesn't work!
+                    <br />
+                  </div>
+                )}
                 {selectionIsLoading ? (
                   <label htmlFor="file-input">Preparing media...</label>
                 ) : (
