@@ -1,9 +1,11 @@
 import React, {
+  Reducer,
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
-  useState
+  useState,
 } from "react";
 import cn from "classnames";
 import { parseSync, stringifySync } from "subtitle";
@@ -18,7 +20,7 @@ import { WaveformItem } from "../waveform/WaveformState";
 import {
   WaveformDragCreate,
   WaveformDragMove,
-  WaveformDragStretch
+  WaveformDragStretch,
 } from "../waveform/WaveformEvent";
 import css from "./HomeEditor.module.scss";
 import scrollIntoView from "scroll-into-view-if-needed";
@@ -30,6 +32,237 @@ import { caption, Caption } from "../utils/caption";
 import { newId } from "../utils/newId";
 import { download } from "../utils/download";
 import { MediaSelection } from "../pages/index";
+
+type CaptionsEditorState = {
+  captions: Record<string, Caption>;
+  // waveformItems: Record<string, WaveformItem>,
+  waveformItems: WaveformItem[];
+  waveformRegions: WaveformRegion[];
+};
+
+type WaveformRegion = {
+  /** milliseconds */
+  start: number;
+  itemIds: string[];
+};
+
+const initialState: CaptionsEditorState = {
+  captions: {},
+  // waveformItems: {},
+  waveformItems: [],
+  waveformRegions: [],
+};
+
+function reducer(
+  state: CaptionsEditorState,
+  action: Action
+): CaptionsEditorState {
+  switch (action.type) {
+    case "ADD_ITEM":
+      return {
+        ...state,
+        waveformItems: [...state.waveformItems, action.item]
+          .sort((a, b) => a.start - b.start)
+          .map((item, i) => ({ ...item, index: i })),
+        captions: {
+          ...state.captions,
+          [action.item.id]: {
+            uuid: action.item.id,
+            text: "",
+          },
+        },
+      };
+
+    case "MOVE_ITEM": {
+      const { tmpClipToMove: clipToMove, deltaX, id, bounds } = action;
+      const newItems: WaveformItem[] = [];
+      let i = 0;
+      for (const item of state.waveformItems) {
+        const idMatch = item.type === "Clip" && id === item.id;
+        if (idMatch) {
+          newItems.push({
+            ...item,
+            start: bound(clipToMove.start - deltaX, bounds),
+            end: bound(clipToMove.end - deltaX, bounds),
+          });
+        } else {
+          newItems.push(item);
+        }
+      }
+      updateIndexesByMutation(newItems);
+      // return newItems;
+
+      return {
+        ...state,
+        waveformItems: newItems,
+      };
+    }
+
+    case "STRETCH_ITEM": {
+      const {
+        id,
+        tmpStretchedClip: clipToStretch,
+        start,
+        end,
+        durationSeconds,
+      } = action;
+      const originKey =
+        Math.abs(start - clipToStretch.start) <
+        Math.abs(start - clipToStretch.end)
+          ? "start"
+          : "end";
+
+      let stretchedClip: WaveformItem;
+      if (originKey === "start") {
+        const bounds: [number, number] = [
+          0,
+          clipToStretch.end - CLIP_THRESHOLD_MILLSECONDS,
+        ];
+        // const stretchStart = bound(start, bounds);
+        const stretchEnd = bound(end, bounds);
+        stretchedClip = {
+          // type: "Clip",
+          ...clipToStretch,
+          start: stretchEnd,
+        };
+      } else {
+        const bounds: [number, number] = [
+          clipToStretch.start + CLIP_THRESHOLD_MILLSECONDS,
+          secondsToMs(durationSeconds),
+        ];
+        // const stretchStart = bound(start, bounds);
+        const stretchEnd = bound(end, bounds);
+        stretchedClip = {
+          // type: "Clip",
+          ...clipToStretch,
+          end: stretchEnd,
+        };
+      }
+
+      const newItems: WaveformItem[] = [];
+
+      const rangeOfStretch: number[] = [];
+
+      let i = 0;
+      for (const item of state.waveformItems) {
+        const idMatch = item.type === "Clip" && id === item.id;
+        if (idMatch) {
+          newItems.push(stretchedClip);
+        } else {
+          newItems.push(
+            item.index === i
+              ? item
+              : {
+                  ...item,
+                  index: i,
+                }
+          );
+        }
+
+        if (overlap(action, item)) rangeOfStretch.push(i);
+        i++;
+      }
+
+      const overlappedByStretch = state.waveformItems.slice(
+        rangeOfStretch[0],
+        rangeOfStretch[rangeOfStretch.length - 1] + 1
+      );
+
+      updateIndexesByMutation(newItems);
+      // then remove overlaps
+
+      return {
+        ...state,
+        waveformItems: newItems,
+      };
+    }
+
+    case "DELETE_CAPTION": {
+      const { id } = action;
+      const newCaptions = { ...state.captions };
+      delete newCaptions[id];
+      return {
+        ...state,
+        captions: newCaptions,
+        waveformItems: state.waveformItems.filter(
+          (item) => !(item.type === "Clip" && item.id === id)
+        ),
+      };
+    }
+
+    case "DELETE_ALL_ITEMS": {
+      return {
+        ...state,
+        waveformItems: [],
+        captions: {},
+      };
+    }
+
+    case "SET_ITEMS":
+      return {
+        ...state,
+        waveformItems: action.items,
+        captions: action.captions,
+      };
+
+    case "SET_CAPTION_TEXT": {
+      const { id, text } = action;
+
+      return {
+        ...state,
+        captions: {
+          ...state.captions,
+          [id]: {
+            ...state.captions[id],
+            text,
+          },
+        },
+      };
+    }
+
+    default:
+      return state;
+  }
+}
+function updateIndexesByMutation(items: WaveformItem[]) {
+  items
+    .sort((a, b) => a.start - b.start)
+    .forEach((item, i) => {
+      if (item.index !== i) items[i] = { ...item, index: i };
+    });
+
+  return items;
+}
+
+type Action =
+  | { type: "ADD_ITEM"; item: Omit<WaveformItem, "index"> }
+  | {
+      type: "MOVE_ITEM";
+      id: string;
+      deltaX: number;
+      tmpClipToMove: WaveformItem;
+      bounds: [number, number];
+    }
+  | {
+      type: "STRETCH_ITEM";
+      id: string;
+      tmpStretchedClip: WaveformItem;
+      start: number;
+      end: number;
+      durationSeconds: number;
+    }
+  | { type: "DELETE_CAPTION"; id: string }
+  | { type: "DELETE_ALL_ITEMS" }
+  | {
+      type: "SET_ITEMS";
+      items: WaveformItem[];
+      captions: CaptionsEditorState["captions"];
+    }
+  | {
+      type: "SET_CAPTION_TEXT";
+      id: string;
+      text: string;
+    };
 
 export function HomeEditor({
   handleChangeLocalFile,
@@ -55,39 +288,33 @@ export function HomeEditor({
     }
   }, [fileSelection, prevFileSelection]);
 
-  const [captions, setCaptions] = useState<Record<string, Caption>>({});
+  const [{ waveformItems, captions }, dispatch] = useReducer(
+    reducer,
+    initialState
+  );
+
+  // const [captions, setCaptions] = useState<Record<string, Caption>>({});
   const captionIds = useMemo(() => Object.keys(captions), [captions]);
-  const [waveformItems, setWaveformItems] = useState<WaveformItem[]>([]);
+  // const [waveformItems, setWaveformItems] = useState<WaveformItem[]>([]);
 
   const handleWaveformDrag = useCallback(
     ({ start: startRaw, end: endRaw, waveformState }: WaveformDragCreate) => {
       const start = Math.min(startRaw, endRaw);
       const end = Math.max(startRaw, endRaw);
 
-      if (end - start < CLIP_THRESHOLD_MILLSECONDS)
-        return;
+      if (end - start < CLIP_THRESHOLD_MILLSECONDS) return;
 
       const id = newId();
-      setWaveformItems((items) => [
-        ...items,
-        {
-          type: "Clip" as const,
-          start,
-          end,
-          id,
-        },
-      ]
-        .sort((a, b) => a.start - b.start)
-        .map((item, i) => ({ ...item, index: i }))
-      );
-
-      setCaptions((captions) => ({
-        ...captions,
-        [id]: {
-          uuid: id,
-          text: "",
-        },
-      }));
+      const newClip = {
+        type: "Clip" as const,
+        start,
+        end,
+        id,
+      };
+      dispatch({
+        type: "ADD_ITEM",
+        item: newClip,
+      });
 
       setTimeout(() => {
         const button: HTMLTextAreaElement | null = document.querySelector(
@@ -107,32 +334,15 @@ export function HomeEditor({
       ];
       const deltaX = start - end;
 
-      const movedClip = {
-        ...clipToMove,
-        start: bound(clipToMove.start - deltaX, bounds),
-        end: bound(clipToMove.end - deltaX, bounds),
-      };
-
-      setWaveformItems((items) => {
-        const newItems: WaveformItem[] = [];
-        let i = 0;
-        for (const item of items) {
-          const idMatch = item.type === "Clip" && clipToMove.id === item.id;
-          if (idMatch) {
-            newItems.push({
-              ...item,
-              start: bound(clipToMove.start - deltaX, bounds),
-              end: bound(clipToMove.end - deltaX, bounds),
-            });
-          } else {
-            newItems.push(item);
-          }
-        }
-        updateIndexesByMutation(newItems);
-        return newItems;
+      dispatch({
+        type: "MOVE_ITEM",
+        bounds,
+        tmpClipToMove: { ...clipToMove, type: "Clip" },
+        id: clipToMove.id,
+        deltaX,
       });
     },
-    [setWaveformItems]
+    [dispatch]
   );
   const handleClipEdgeDrag = useCallback(
     (stretch: WaveformDragStretch) => {
@@ -143,99 +353,29 @@ export function HomeEditor({
         waveformState: { durationSeconds, pixelsPerSecond },
       } = stretch;
 
-      const originKey = Math.abs(start - clipToStretch.start) <
-        Math.abs(start - clipToStretch.end)
-        ? "start"
-        : "end";
-
-      let stretchedClip: WaveformItem;
-      if (originKey === "start") {
-        const bounds: [number, number] = [
-          0,
-          clipToStretch.end - CLIP_THRESHOLD_MILLSECONDS,
-        ];
-        // const stretchStart = bound(start, bounds);
-        const stretchEnd = bound(end, bounds);
-        stretchedClip = {
-          type: "Clip",
+      dispatch({
+        type: "STRETCH_ITEM",
+        id: clipToStretch.id,
+        tmpStretchedClip: {
           ...clipToStretch,
-          start: stretchEnd,
-        };
-      } else {
-        const bounds: [number, number] = [
-          clipToStretch.start + CLIP_THRESHOLD_MILLSECONDS,
-          secondsToMs(durationSeconds),
-        ];
-        // const stretchStart = bound(start, bounds);
-        const stretchEnd = bound(end, bounds);
-        stretchedClip = {
           type: "Clip",
-          ...clipToStretch,
-          end: stretchEnd,
-        };
-      }
-
-      setWaveformItems((items) => {
-        const newItems: WaveformItem[] = [];
-
-        const rangeOfStretch: number[] = [];
-
-        let i = 0;
-        for (const item of items) {
-          const idMatch = item.type === "Clip" && clipToStretch.id === item.id;
-          if (idMatch) {
-            newItems.push(stretchedClip);
-          } else {
-            newItems.push(
-              item.index === i
-                ? item
-                : {
-                  ...item,
-                  index: i,
-                }
-            );
-          }
-
-          if (overlap(stretch, item))
-            rangeOfStretch.push(i);
-          i++;
-        }
-
-        const overlappedByStretch = items.slice(
-          rangeOfStretch[0],
-          rangeOfStretch[rangeOfStretch.length - 1] + 1
-        );
-
-        updateIndexesByMutation(newItems);
-        // then remove overlaps
-        return newItems;
+        },
+        durationSeconds,
+        start,
+        end,
       });
     },
-    [setWaveformItems]
+    [dispatch]
   );
-
-  function updateIndexesByMutation(items: WaveformItem[]) {
-    items
-      .sort((a, b) => a.start - b.start)
-      .forEach((item, i) => {
-        if (item.index !== i)
-          items[i] = { ...item, index: i };
-      });
-
-    return items;
-  }
 
   const deleteCaption = useCallback(
     (id: string) => {
-      setCaptions((captions) => {
-        const newCaptions = { ...captions };
-        delete newCaptions[id];
-        return newCaptions;
+      dispatch({
+        type: "DELETE_CAPTION",
+        id,
       });
-      setWaveformItems((items) => items.filter((item) => !(item.type === "Clip" && item.id === id))
-      );
     },
-    [setCaptions]
+    [dispatch]
   );
 
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
@@ -251,29 +391,27 @@ export function HomeEditor({
 
   const reload = useCallback(() => {
     const yes = confirm("Discard your work and start again?");
-    if (yes)
-      window.location.reload();
+    if (yes) window.location.reload();
   }, []);
 
   const handleImportSrt: React.ChangeEventHandler<HTMLInputElement> = useCallback(
     (e) => {
       const { files } = e.target;
       const file = files?.[0];
-      if (!file)
-        return;
+      if (!file) return;
 
       function readFileFromFileInput(file: File) {
         return new Promise<string | undefined>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string | undefined);
+          reader.onload = (e) =>
+            resolve(e.target?.result as string | undefined);
           reader.onerror = (e) => reject(e);
           reader.readAsText(file);
         });
       }
 
       readFileFromFileInput(file).then((text) => {
-        if (!text)
-          throw new Error("Invalid subtitles file");
+        if (!text) throw new Error("Invalid subtitles file");
         const nodes = parseSync(text);
         const { newCaptions, newWaveformItems } = nodes.reduce(
           (acc, node, index) => {
@@ -297,27 +435,31 @@ export function HomeEditor({
             newWaveformItems: [] as WaveformItem[],
           }
         );
-        setCaptions(newCaptions);
-        setWaveformItems(newWaveformItems);
+        dispatch({
+          type: "SET_ITEMS",
+          captions: newCaptions,
+          items: newWaveformItems,
+        });
       });
     },
-    [setCaptions, setWaveformItems]
+    [dispatch]
   );
 
   const handleExportSrt: React.MouseEventHandler = useCallback(() => {
     try {
-      const nodes = Object.values(waveformItems).flatMap((c) => c.type === "Clip"
-        ? [
-          {
-            type: "cue" as const,
-            data: {
-              start: secondsToMs(c.start),
-              end: secondsToMs(c.end),
-              text: captions[c.id].text,
-            },
-          },
-        ]
-        : []
+      const nodes = Object.values(waveformItems).flatMap((c) =>
+        c.type === "Clip"
+          ? [
+              {
+                type: "cue" as const,
+                data: {
+                  start: secondsToMs(c.start),
+                  end: secondsToMs(c.end),
+                  text: captions[c.id].text,
+                },
+              },
+            ]
+          : []
       );
 
       const text = stringifySync(nodes, { format: "SRT" });
@@ -326,13 +468,6 @@ export function HomeEditor({
       throw err;
     }
   }, [captions, fileSelection, waveformItems]);
-
-  function overlap(
-    a: Pick<WaveformItem, "start" | "end">,
-    b: Pick<WaveformItem, "start" | "end">
-  ) {
-    return a.start <= b.end && a.end >= b.start;
-  }
 
   function removeOverlaps(waveformItems: WaveformItem[]): WaveformItem[] {
     const sorted = [...waveformItems].sort((a, b) => a.start - b.start);
@@ -347,8 +482,7 @@ export function HomeEditor({
 
   const setMediaCurrentTime = useCallback(
     (seconds: number) => {
-      if (playerRef.current)
-        playerRef.current.currentTime = seconds;
+      if (playerRef.current) playerRef.current.currentTime = seconds;
     },
     [playerRef]
   );
@@ -374,19 +508,16 @@ export function HomeEditor({
     },
     []
   );
-  const handleSubmitCaptionText = useCallback((id: string, text: string) => {
-    function changeCaptionText(id: string, text: string) {
-      setCaptions((map) => ({
-        ...map,
-        [id]: {
-          ...map[id],
-          text,
-        },
-      }));
-    }
-
-    changeCaptionText(id, text);
-  }, []);
+  const handleSubmitCaptionText = useCallback(
+    (id: string, text: string) => {
+      dispatch({
+        type: "SET_CAPTION_TEXT",
+        id,
+        text,
+      });
+    },
+    [dispatch]
+  );
 
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(
     null
@@ -394,13 +525,14 @@ export function HomeEditor({
   const currentCaption = highlightedClipId ? captions[highlightedClipId] : null;
   const updateCaptionText = useCallback(() => {
     const currentWaveformItem = selection;
-    if (currentCaption &&
+    if (
+      currentCaption &&
       currentWaveformItem &&
       secondsToMs(playerRef.current?.currentTime || Infinity) <
-      currentWaveformItem.end)
+        currentWaveformItem.end
+    )
       setCurrentCaptionText(currentCaption.text);
-    else
-      setCurrentCaptionText(null);
+    else setCurrentCaptionText(null);
   }, [
     onTimeUpdate,
     currentCaption,
@@ -487,7 +619,8 @@ export function HomeEditor({
                       onEditingStateChange={handleChangeCaptionEditing}
                       onSubmitText={handleSubmitCaptionText}
                       onChangeText={setCurrentCaptionText}
-                      deleteCaption={deleteCaption} />,
+                      deleteCaption={deleteCaption}
+                    />,
                   ];
                 }
 
@@ -529,7 +662,8 @@ export function HomeEditor({
               fileSelection={fileSelection}
               loop={Boolean(loopReason)}
               onTimeUpdate={handleMediaTimeUpdate}
-              onMediaLoaded={resetWaveformState} />
+              onMediaLoaded={resetWaveformState}
+            />
             <div className={css.currentCaptionText}>
               <span className={css.currentCaptionTextInner}>
                 {currentCaptionText}
@@ -544,7 +678,8 @@ export function HomeEditor({
           playerRef={playerRef}
           onWaveformDrag={handleWaveformDrag}
           onClipDrag={handleClipDrag}
-          onClipEdgeDrag={handleClipEdgeDrag} />
+          onClipEdgeDrag={handleClipEdgeDrag}
+        />
       </main>
 
       <footer className={css.footer}>
@@ -558,4 +693,11 @@ export function HomeEditor({
       </footer>
     </div>
   );
+}
+
+function overlap(
+  a: Pick<WaveformItem, "start" | "end">,
+  b: Pick<WaveformItem, "start" | "end">
+) {
+  return a.start <= b.end && a.end >= b.start;
 }
