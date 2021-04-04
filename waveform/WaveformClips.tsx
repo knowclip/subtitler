@@ -1,10 +1,7 @@
-import React, { MutableRefObject, useCallback } from "react";
+import React, { MutableRefObject, ReactNode, useCallback } from "react";
 import cn from "classnames";
 import { getClipRectProps } from "./getClipRectProps";
-import {
-  msToPixels,
-  SELECTION_BORDER_MILLISECONDS,
-} from "./utils";
+import { msToPixels, SELECTION_BORDER_MILLISECONDS } from "./utils";
 import { Clip, WaveformItem } from "./WaveformState";
 import css from "./Waveform.module.scss";
 import { WaveformRegion } from "../utils/calculateRegions";
@@ -44,6 +41,7 @@ const ClipsBase = ({
   pixelsPerSecond: number;
   selectItem: (region: WaveformRegion, clip: WaveformItem) => void;
 }) => {
+  let highlightedClipDisplay: ReactNode;
 
   return (
     // className={$.waveformClipsContainer}
@@ -51,22 +49,27 @@ const ClipsBase = ({
       {regions.flatMap((region, i) => {
         return region.itemIds.flatMap((id) => {
           const clip = waveformItems[id];
-          if (clip.type === "Clip")
-            return (
+          if (clip.type === "Clip" && region.start === clip.start) {
+            const isHighlighted = clip.id === highlightedClipId;
+            const display = (
               <WaveformClip
                 clip={clip}
                 region={region}
                 regionIndex={i}
                 index={i}
                 key={clip.id}
-                isHighlighted={clip.id === highlightedClipId}
+                isHighlighted={isHighlighted}
                 height={height}
                 pixelsPerSecond={pixelsPerSecond}
                 selectItem={selectItem}
               />
             );
+            if (isHighlighted) highlightedClipDisplay = display;
+            else return display;
+          }
         });
       })}
+      {highlightedClipDisplay}
     </g>
   );
 };
@@ -91,7 +94,6 @@ const WaveformClipBase = ({
     "data-clip-index": index,
   };
   if (isHighlighted) clickDataProps["data-clip-is-highlighted"] = 1;
-
 
   const handleClick = useCallback(() => {
     if (!isHighlighted) selectItem(region, clip);

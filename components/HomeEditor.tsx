@@ -482,18 +482,28 @@ export function HomeEditor({
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(
     null
   );
-  const currentCaption = highlightedClipId ? captions[highlightedClipId] : null;
+  const itemIdsAtCurrentTime = selection?.region.itemIds.length
+    ? selection.region.itemIds
+    : null;
   const updateCaptionText = useCallback(() => {
     const currentWaveformItem = selection;
     if (
-      currentCaption &&
+      itemIdsAtCurrentTime &&
       currentWaveformItem &&
       secondsToMs(playerRef.current?.currentTime || Infinity) <
         currentWaveformItem.item.end
     )
-      setCurrentCaptionText(currentCaption.text);
+      setCurrentCaptionText(
+        itemIdsAtCurrentTime
+          .flatMap((id) => {
+            const caption = captions[id];
+            return caption ? caption.text : [];
+          })
+          .reverse()
+          .join("\n")
+      );
     else setCurrentCaptionText(null);
-  }, [currentCaption, setCurrentCaptionText, playerRef, selection]);
+  }, [selection, itemIdsAtCurrentTime, captions]);
   useEffect(() => {
     updateCaptionText();
   }, [

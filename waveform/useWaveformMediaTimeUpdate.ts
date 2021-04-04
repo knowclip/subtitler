@@ -41,10 +41,11 @@ export function useWaveformMediaTimeUpdate(
       const newMilliseconds = secondsToMs(media.currentTime);
       const currentSelection = state.selection;
 
-      const newSelectionCandidate = getNewWaveformSelectionAtFromSubset(
+      const newSelectionCandidate = getNewWaveformSelectionAt(
         waveformItems,
         regions,
-        newMilliseconds
+        newMilliseconds,
+        currentSelection
       );
 
       const newSelection = isValidNewSelection(
@@ -68,6 +69,7 @@ export function useWaveformMediaTimeUpdate(
           type: "NAVIGATE_TO_TIME",
           ms: currentSelection.item.start,
           viewBoxStartMs: state.viewBoxStartMs,
+          selection: currentSelection
         });
       }
 
@@ -118,10 +120,10 @@ function viewBoxStartMsOnTimeUpdate(
   state: WaveformState,
   newlySetMs: number,
   svgWidth: number,
-  x: ReturnType<typeof getNewWaveformSelectionAtFromSubset>,
+  newSelection: ReturnType<typeof getNewWaveformSelectionAt>,
   seeking: boolean
 ): number {
-  const newSelection = x?.item || null;
+  const newSelectionItem = newSelection?.item || null;
   if (state.pendingAction) return state.viewBoxStartMs;
   const visibleTimeSpan = pixelsToMs(svgWidth, state.pixelsPerSecond);
   const buffer = Math.round(visibleTimeSpan * 0.1);
@@ -130,15 +132,15 @@ function viewBoxStartMsOnTimeUpdate(
   const durationMs = secondsToMs(durationSeconds);
   const currentRightEdge = viewBoxStartMs + visibleTimeSpan;
 
-  if (seeking && newSelection) {
-    if (newSelection.end + buffer >= currentRightEdge)
-      return bound(newSelection.end + buffer - visibleTimeSpan, [
+  if (seeking && newSelectionItem) {
+    if (newSelectionItem.end + buffer >= currentRightEdge)
+      return bound(newSelectionItem.end + buffer - visibleTimeSpan, [
         0,
         durationMs - visibleTimeSpan,
       ]);
 
-    if (newSelection.start - buffer <= viewBoxStartMs)
-      return Math.max(0, newSelection.start - buffer);
+    if (newSelectionItem.start - buffer <= viewBoxStartMs)
+      return Math.max(0, newSelectionItem.start - buffer);
   }
 
   const leftShiftRequired = newlySetMs < viewBoxStartMs;
@@ -148,7 +150,7 @@ function viewBoxStartMsOnTimeUpdate(
 
   const rightShiftRequired = newlySetMs >= currentRightEdge;
   if (rightShiftRequired) {
-    return bound((newSelection ? newSelection.end : newlySetMs) + buffer, [
+    return bound((newSelectionItem ? newSelectionItem.end : newlySetMs) + buffer, [
       0,
       durationMs - visibleTimeSpan,
     ]);
@@ -157,12 +159,18 @@ function viewBoxStartMsOnTimeUpdate(
   return state.viewBoxStartMs;
 }
 
-export const getNewWaveformSelectionAtFromSubset = (
+export const getNewWaveformSelectionAt = (
   newWaveformItems: Record<string, WaveformItem>,
   regions: WaveformRegion[],
-  newMs: number
+  newMs: number,
+  currentSelection: WaveformState['selection']
 ): WaveformState["selection"] => {
-  for (let i = 0; i < regions.length; i++) {
+  if (currentSelection && currentSelection.region === regions[currentSelection.regionIndex]) {
+    if (newMs >= currentSelection.region.start && newMs < getRegionEnd(regions, currentSelection.regionIndex)) {
+      return currentSelection
+    }
+  } 
+    for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
 
     if (region.start > newMs) break;
