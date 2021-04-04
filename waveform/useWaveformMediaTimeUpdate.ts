@@ -38,27 +38,16 @@ export function useWaveformMediaTimeUpdate(
 
       const newMilliseconds = secondsToMs(media.currentTime);
       const currentSelection = state.selection;
-      const expandedSelection: WaveformItem | null = currentSelection
-        ? ({
-            type: currentSelection.type,
-            // index: currentSelection.index,
-
-            // TODO: accommodate other types
-            start: currentSelection.start,
-            end: currentSelection.end,
-            id: currentSelection.id,
-          } as WaveformItem)
-        : null;
 
       const newSelectionCandidate = getNewWaveformSelectionAtFromSubset(
-        expandedSelection,
+        currentSelection,
         waveformItems,
         regions,
         newMilliseconds
       );
 
       const newSelection = isValidNewSelection(
-        expandedSelection,
+        currentSelection,
         newSelectionCandidate
       )
         ? newSelectionCandidate
@@ -72,7 +61,7 @@ export function useWaveformMediaTimeUpdate(
         !media.paused &&
         currentSelection &&
         newMilliseconds >= currentSelection.end;
-      if (loopImminent && currentSelection && currentSelection) {
+      if (loopImminent && currentSelection) {
         media.currentTime = msToSeconds(currentSelection.start);
         const action: WaveformAction = {
           type: "NAVIGATE_TO_TIME",
