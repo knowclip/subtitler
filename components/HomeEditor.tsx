@@ -32,6 +32,7 @@ import { download } from "../utils/download";
 import { MediaSelection } from "../pages/index";
 import {
   calculateRegions,
+  getRegionEnd,
   newRegionsWithItem,
   recalculateRegions,
   WaveformRegion,
@@ -80,13 +81,22 @@ function reducer(
       };
     }
     case "MOVE_ITEM": {
-      const { deltaX, id, bounds } = action;
+      const { deltaX, id } = action;
 
+      const end = getRegionEnd(
+        state.waveformRegions,
+        state.waveformRegions.length - 1
+      );
       const target = state.waveformItems[id];
+      const boundedDeltaX = bound(deltaX, [
+        0 - target.start,
+        end - target.end,
+      ]);
+
       const moved = {
         ...target,
-        start: bound(target.start - deltaX, bounds),
-        end: bound(target.end - deltaX, bounds),
+        start: target.start + boundedDeltaX,
+        end: target.end + boundedDeltaX,
       };
 
       return {
@@ -201,7 +211,6 @@ type Action =
       type: "MOVE_ITEM";
       id: string;
       deltaX: number;
-      bounds: [number, number];
     }
   | {
       type: "STRETCH_ITEM";
@@ -290,16 +299,11 @@ export function HomeEditor({
   );
   const handleClipDrag = useCallback(
     (move: WaveformDragMove) => {
-      const { start, end, clipToMove, waveformState } = move;
-      const bounds: [number, number] = [
-        0,
-        secondsToMs(waveformState.durationSeconds),
-      ];
-      const deltaX = start - end;
+      const { start, end, clipToMove } = move;
+      const deltaX = end - start;
 
       dispatch({
         type: "MOVE_ITEM",
-        bounds,
         id: clipToMove.id,
         deltaX,
       });
