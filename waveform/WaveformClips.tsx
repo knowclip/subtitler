@@ -1,10 +1,11 @@
-import React, { MutableRefObject, ReactNode, useCallback } from "react";
+import React, { ReactNode, useCallback } from "react";
 import cn from "classnames";
 import { getClipRectProps } from "./getClipRectProps";
-import { msToPixels, SELECTION_BORDER_MILLISECONDS } from "./utils";
-import { Clip, WaveformItem } from "./WaveformState";
+import { msToPixels, pixelsToMs, SELECTION_BORDER_MILLISECONDS } from "./utils";
+import { Clip, WaveformItem, WaveformState } from "./WaveformState";
 import css from "./Waveform.module.scss";
-import { WaveformRegion } from "../utils/calculateRegions";
+import { getRegionEnd, WaveformRegion } from "../utils/calculateRegions";
+import { MAX_WAVEFORM_VIEWPORT_WIDTH } from "./useWaveform";
 
 type ClipProps = {
   clip: Clip;
@@ -29,16 +30,14 @@ const ClipsBase = ({
   regions,
   highlightedClipId,
   height,
-  playerRef,
-  pixelsPerSecond,
+  state: {pixelsPerSecond, viewBoxStartMs},
   selectItem,
 }: {
   waveformItems: Record<string, WaveformItem>;
   regions: WaveformRegion[];
   highlightedClipId: string | null;
   height: number;
-  playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
-  pixelsPerSecond: number;
+  state: WaveformState;
   selectItem: (region: WaveformRegion, clip: WaveformItem) => void;
 }) => {
   let highlightedClipDisplay: ReactNode;
@@ -47,6 +46,7 @@ const ClipsBase = ({
     // className={$.waveformClipsContainer}
     <g>
       {regions.flatMap((region, i) => {
+        if (getRegionEnd(regions, i) < viewBoxStartMs || region.start > viewBoxStartMs + pixelsToMs(MAX_WAVEFORM_VIEWPORT_WIDTH, pixelsPerSecond)) return []
         return region.itemIds.flatMap((id) => {
           const clip = waveformItems[id];
           if (clip.type === "Clip" && region.start === clip.start) {
@@ -84,7 +84,6 @@ const WaveformClipBase = ({
   pixelsPerSecond,
   selectItem,
   region,
-  regionIndex,
 }: ClipProps) => {
   const { id, start, end } = clip;
   const clickDataProps: ClipClickDataProps = {

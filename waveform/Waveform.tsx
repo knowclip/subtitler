@@ -15,7 +15,6 @@ import {
   MutableRefObject,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
 } from "react";
 import WaveformMousedownEvent, {
@@ -95,8 +94,7 @@ export default function Waveform({
           regions={waveform.regions}
           highlightedClipId={highlightedClipId}
           height={height}
-          playerRef={playerRef}
-          pixelsPerSecond={pixelsPerSecond}
+          state={waveform.state}
           selectItem={selectItem}
         />
         {pendingAction && (

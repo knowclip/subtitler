@@ -154,7 +154,7 @@ function updateViewState(
   }
 }
 
-const MAX_WAVEFORM_VIEWPORT_WIDTH = 3000;
+export const MAX_WAVEFORM_VIEWPORT_WIDTH = 3000;
 
 export const limitSelectorToDisplayedItems = <T>(
   getStart: (item: T) => number,
