@@ -32,8 +32,8 @@ import { download } from "../utils/download";
 import { MediaSelection } from "../pages/index";
 import {
   calculateRegions,
-  getRegionEnd,
   newRegionsWithItem,
+  recalculateRegions,
   WaveformRegion,
 } from "../utils/calculateRegions";
 
@@ -43,12 +43,17 @@ type CaptionsEditorState = {
   waveformRegions: WaveformRegion[];
 };
 
-const initialState: CaptionsEditorState = {
+const getInitialState = (end: number): CaptionsEditorState => ({
   captions: {},
   waveformItems: {},
-  // waveformItems__: [],
-  waveformRegions: [],
-};
+  waveformRegions: [
+    {
+      start: 0,
+      itemIds: [],
+      end,
+    },
+  ],
+});
 
 function reducer(
   state: CaptionsEditorState,
@@ -59,17 +64,12 @@ function reducer(
     case "ADD_ITEM": {
       const { item } = action;
 
-      // const { waveformItemsMap, regions } = calculateRegions(state.waveformItems, state.waveformItems)
       const map = { ...state.waveformItems };
       const regions = newRegionsWithItem(state.waveformRegions, map, item);
       return {
         ...state,
         waveformItems: map,
         waveformRegions: regions,
-        // waveformItems: {
-        //   ...state.waveformItems,
-        //   [item.id]: item,
-        // },
         captions: {
           ...state.captions,
           [action.item.id]: {
@@ -80,105 +80,64 @@ function reducer(
       };
     }
     case "MOVE_ITEM": {
-      const { tmpClipToMove: clipToMove, deltaX, id, bounds } = action;
-      const newItems: WaveformItem[] = [];
-      for (const region of state.waveformRegions) {
-        for (const id of region.itemIds) {
-          const item = state.waveformItems[id];
-          const idMatch = item.type === "Clip" && id === item.id;
-          if (item.start === region.start) {
-            newItems.push(
-              idMatch
-                ? {
-                    ...item,
-                    start: bound(clipToMove.start - deltaX, bounds),
-                    end: bound(clipToMove.end - deltaX, bounds),
-                  }
-                : item
-            );
-          }
-        }
-      }
-      // return newItems;
+      const { deltaX, id, bounds } = action;
 
       const target = state.waveformItems[id];
+      const moved = {
+        ...target,
+        start: bound(target.start - deltaX, bounds),
+        end: bound(target.end - deltaX, bounds),
+      };
 
       return {
         ...state,
+        waveformRegions: recalculateRegions(
+          state.waveformRegions,
+          state.waveformItems,
+          action.id,
+          moved
+        ),
         waveformItems: {
           ...state.waveformItems,
-          [id]: {
-            ...target,
-            start: bound(target.start - deltaX, bounds),
-            end: bound(target.end - deltaX, bounds),
-          },
+          [id]: moved,
         },
       };
     }
 
     case "STRETCH_ITEM": {
-      const {
-        id,
-        tmpStretchedClip: clipToStretch,
-        start,
-        end,
-        durationSeconds,
-      } = action;
+      const { id, start, end, durationSeconds } = action;
+      const clipToStretch = state.waveformItems[id];
       const originKey =
         Math.abs(start - clipToStretch.start) <
         Math.abs(start - clipToStretch.end)
           ? "start"
           : "end";
 
-      const bounds: [number, number] = originKey === "start"
-      ? [
-        0,
-        clipToStretch.end - CLIP_THRESHOLD_MILLSECONDS,
-      ] : [
-        clipToStretch.start + CLIP_THRESHOLD_MILLSECONDS,
-        secondsToMs(durationSeconds),
-      ];
+      const bounds: [number, number] =
+        originKey === "start"
+          ? [0, clipToStretch.end - CLIP_THRESHOLD_MILLSECONDS]
+          : [
+              clipToStretch.start + CLIP_THRESHOLD_MILLSECONDS,
+              secondsToMs(durationSeconds),
+            ];
       const stretchEnd = bound(end, bounds);
-
-      const newItems: WaveformItem[] = [];
-
-      const rangeOfStretch: number[] = [];
-
-      let i = 0;
-      for (const region of state.waveformRegions) {
-        if (
-          overlap(action, {
-            start: region.start,
-            end: getRegionEnd(state.waveformRegions, i),
-          })
-        )
-          rangeOfStretch.push(i);
-
-        for (const id of region.itemIds) {
-          const item = state.waveformItems[id];
-          const idMatch = item.type === "Clip" && id === item.id;
-          if (item.start === region.start) {
-            newItems.push(
-              idMatch ? { ...clipToStretch, [originKey]: stretchEnd } : item
-            );
-          }
-        }
-
-        i++;
-      }
-
       const target = state.waveformItems[id];
-
+      const stretched = {
+        ...target,
+        [originKey]: stretchEnd,
+      };
       return {
         ...state,
         waveformItems: {
           ...state.waveformItems,
-          [id]: {
-            ...target,
-            [originKey]: stretchEnd,
-          },
+          [id]: stretched,
         },
-        // REGIONS!!!
+        waveformRegions: recalculateRegions(
+          state.waveformRegions,
+          state.waveformItems,
+          action.id,
+          stretched
+        ),
       };
     }
 
@@ -192,35 +151,21 @@ function reducer(
         ...state,
         captions: newCaptions,
         waveformItems: newWaveformItems,
-        // REGIONS!!
-      };
-    }
-
-    case "DELETE_ALL_ITEMS": {
-      return {
-        ...state,
-        waveformItems: {},
-        // REGIONS!!
-        captions: {},
+        waveformRegions: recalculateRegions(
+          state.waveformRegions,
+          state.waveformItems,
+          action.id,
+          null
+        ),
       };
     }
 
     case "RESET":
-      return {
-        ...state,
-        waveformItems: {},
-        waveformRegions: [
-          {
-            start: 0,
-            itemIds: [],
-            end: action.end,
-          },
-        ],
-      };
+      return getInitialState(action.end);
 
     case "SET_ITEMS": {
       const { regions, waveformItemsMap } = calculateRegions(
-        action.items,
+        action.sortedItems,
         action.end
       );
       return {
@@ -256,22 +201,19 @@ type Action =
       type: "MOVE_ITEM";
       id: string;
       deltaX: number;
-      tmpClipToMove: WaveformItem;
       bounds: [number, number];
     }
   | {
       type: "STRETCH_ITEM";
       id: string;
-      tmpStretchedClip: WaveformItem;
       start: number;
       end: number;
       durationSeconds: number;
     }
   | { type: "DELETE_CAPTION"; id: string }
-  | { type: "DELETE_ALL_ITEMS" }
   | {
       type: "SET_ITEMS";
-      items: WaveformItem[];
+      sortedItems: WaveformItem[];
       captions: CaptionsEditorState["captions"];
       // rename
       end: number;
@@ -313,12 +255,10 @@ export function HomeEditor({
 
   const [{ waveformRegions, waveformItems, captions }, dispatch] = useReducer(
     reducer,
-    initialState
+    getInitialState(secondsToMs(fileSelection.durationSeconds))
   );
 
-  // const [captions, setCaptions] = useState<Record<string, Caption>>({});
   const captionIds = useMemo(() => Object.keys(captions), [captions]);
-  // const [waveformItems, setWaveformItems] = useState<WaveformItem[]>([]);
 
   const handleWaveformDrag = useCallback(
     ({ start: startRaw, end: endRaw }: WaveformDragCreate) => {
@@ -360,7 +300,6 @@ export function HomeEditor({
       dispatch({
         type: "MOVE_ITEM",
         bounds,
-        tmpClipToMove: { ...clipToMove, type: "Clip" },
         id: clipToMove.id,
         deltaX,
       });
@@ -379,10 +318,6 @@ export function HomeEditor({
       dispatch({
         type: "STRETCH_ITEM",
         id: clipToStretch.id,
-        tmpStretchedClip: {
-          ...clipToStretch,
-          type: "Clip",
-        },
         durationSeconds,
         start,
         end,
@@ -460,7 +395,10 @@ export function HomeEditor({
         dispatch({
           type: "SET_ITEMS",
           captions: newCaptions,
-          items: newWaveformItems,
+          sortedItems: newWaveformItems.sort((a, b) => {
+            const byStart = a.start - b.start;
+            return byStart || b.end - a.end;
+          }),
           end: secondsToMs(durationSeconds),
         });
       });
@@ -547,14 +485,7 @@ export function HomeEditor({
     )
       setCurrentCaptionText(currentCaption.text);
     else setCurrentCaptionText(null);
-  }, [
-    onTimeUpdate,
-    currentCaption,
-    setCurrentCaptionText,
-    playerRef,
-    selection,
-    highlightedClipId,
-  ]);
+  }, [currentCaption, setCurrentCaptionText, playerRef, selection]);
   useEffect(() => {
     updateCaptionText();
   }, [
@@ -564,6 +495,7 @@ export function HomeEditor({
     selection,
     highlightedClipId,
     captions,
+    updateCaptionText,
   ]);
   const handleMediaTimeUpdate: typeof onTimeUpdate = useCallback(
     (media, seeking, looping) => {
