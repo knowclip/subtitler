@@ -9,7 +9,6 @@ export type WaveformState = {
 
 export type WaveformItem = {
   type: "Clip" | "Preview";
-  index: number;
   id: string;
   start: number;
   end: number;

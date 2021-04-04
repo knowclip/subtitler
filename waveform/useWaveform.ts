@@ -1,13 +1,11 @@
-import { useCallback, useMemo, useReducer, useRef } from "react";
+import { useCallback, useReducer, useRef } from "react";
 import { pixelsToMs, secondsToMs } from "./utils";
 import { bound } from "../utils/bound";
 
 import { useWaveformMediaTimeUpdate } from "./useWaveformMediaTimeUpdate";
 import { WaveformDragAction } from "./WaveformEvent";
-import {
-  WaveformItem,
-  WaveformState,
-} from "./WaveformState";
+import { WaveformItem, WaveformState } from "./WaveformState";
+import { WaveformRegion } from "../utils/calculateRegions";
 
 const initialState: WaveformState = {
   cursorMs: 0,
@@ -20,12 +18,10 @@ const initialState: WaveformState = {
 
 export type WaveformInterface = ReturnType<typeof useWaveform>;
 
-export function useWaveform(waveformItems: WaveformItem[]) {
-  const limitWaveformItemsToDisplayed = limitSelectorToDisplayedItems(
-    (waveformItem: WaveformItem) => waveformItem.start,
-    (waveformItem: WaveformItem) => waveformItem.end
-  );
-
+export function useWaveform(
+  regions: WaveformRegion[],
+  items: Record<string, WaveformItem>
+) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [state, dispatch] = useReducer(updateViewState, initialState);
   const resetWaveformState = useCallback(
@@ -35,36 +31,21 @@ export function useWaveform(waveformItems: WaveformItem[]) {
     [dispatch]
   );
 
-  const visibleWaveformItems = useMemo(
-    () =>
-      limitWaveformItemsToDisplayed(
-        waveformItems,
-        state.viewBoxStartMs,
-        state.pixelsPerSecond
-      ),
-    [
-      limitWaveformItemsToDisplayed,
-      waveformItems,
-      state.viewBoxStartMs,
-      state.pixelsPerSecond,
-    ]
-  );
-
   const waveformInterface = {
     svgRef,
     state,
     dispatch,
     resetWaveformState,
-    visibleWaveformItems,
-    waveformItems,
+    regions,
+    items,
   };
 
   return {
     onTimeUpdate: useWaveformMediaTimeUpdate(
       svgRef,
       dispatch,
-      visibleWaveformItems,
-      waveformItems,
+      items,
+      regions,
       state
     ),
     ...waveformInterface,

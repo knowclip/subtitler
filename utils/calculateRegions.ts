@@ -10,14 +10,14 @@ export type WaveformRegion = {
 
 export const calculateRegions = (
   /** sorted by start. then end? */
-  sortedItems: Omit<WaveformItem, "index">[],
+  sortedItems: WaveformItem[],
   end: number
 ): {
   regions: WaveformRegion[];
-  waveformItemsMap: Record<string, Omit<WaveformItem, "index">>;
+  waveformItemsMap: Record<string, WaveformItem>;
 } => {
   let regions: WaveformRegion[] = [{ start: 0, itemIds: [], end }];
-  const waveformItemsMap: Record<string, Omit<WaveformItem, "index">> = {};
+  const waveformItemsMap: Record<string, WaveformItem> = {};
   for (const item of sortedItems) {
     regions = newRegionsWithItem(regions, waveformItemsMap, item);
   }
@@ -28,18 +28,17 @@ export const calculateRegions = (
 export function newRegionsWithItem(
   regions: WaveformRegion[],
   /** to be mutated */
-  waveformItemsMap: Record<string, Omit<WaveformItem, "index">>,
-  newItem: Omit<WaveformItem, "index">
+  waveformItemsMap: Record<string, WaveformItem>,
+  newItem: WaveformItem
 ): WaveformRegion[] {
   const newRegions: WaveformRegion[] = [];
 
   waveformItemsMap[newItem.id] = newItem;
 
-  const end = regions[regions.length - 1].end!;
 
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
-    const regionEnd = getRegionEnd(regions[i + 1] || null, end);
+    const regionEnd = getRegionEnd(regions, i);
     /// OFF BY ONE?
     const overlap = region.start <= newItem.end && regionEnd > newItem.start;
 
@@ -72,7 +71,9 @@ export function newRegionsWithItem(
   return newRegions;
 }
 
-function getRegionEnd(nextRegion: WaveformRegion | null, end: number): number {
+export function getRegionEnd(regions: WaveformRegion[], index: number): number {
+  const end = regions[regions.length - 1].end!;
+  const nextRegion: WaveformRegion | null = regions[index + 1] || null
   if (!nextRegion) return end;
   const nextRegionStart = nextRegion.start;
   return nextRegionStart;

@@ -62,14 +62,24 @@ export default function Waveform({
     state: waveform.state,
     playerRef,
     dispatch: waveform.dispatch,
-    ...waveformEventHandlers
+    ...waveformEventHandlers,
   });
 
   const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
-  const clips = useMemo(
-    () => waveform.waveformItems.filter((item): item is WaveformItem  & {type: "Clip"} => item.type === "Clip"),
-    [waveform.waveformItems]
-  );
+  const clips = useMemo(() => {
+    return waveform.regions.flatMap((region) => {
+      return region.itemIds.flatMap((itemId) => {
+        const item = waveform.items[itemId];
+        return item.start === region.start ? item : [];
+      });
+    });
+  }, [
+    waveform.regions,
+    waveform.items,
+  ]);
+
+  const { regions, items } = waveform;
+  console.log({ clips, regions, items });
 
   return (
     <svg
@@ -345,9 +355,11 @@ function useWaveformMouseActions({
         };
         document.dispatchEvent(new WaveformDragEvent(finalAction));
 
-        if (finalAction.type === "CREATE") eventHandlers.onWaveformDrag(finalAction);
+        if (finalAction.type === "CREATE")
+          eventHandlers.onWaveformDrag(finalAction);
         if (finalAction.type === "MOVE") eventHandlers.onClipDrag(finalAction);
-        if (finalAction.type === "STRETCH") eventHandlers.onClipEdgeDrag(finalAction);
+        if (finalAction.type === "STRETCH")
+          eventHandlers.onClipEdgeDrag(finalAction);
       }
     };
     document.addEventListener("mouseup", handleMouseUps);
@@ -361,6 +373,7 @@ function useWaveformMouseActions({
     svgRef,
     state,
     durationSeconds,
+    eventHandlers,
   ]);
 
   return {
@@ -436,7 +449,7 @@ function getTimeAfterMouseUp(
   mouseMilliseconds: number
 ) {
   const clipIsToBeNewlySelected =
-  dataset &&
+    dataset &&
     dataset.clipId &&
     (waveformSelection?.type !== "Clip" ||
       waveformSelection.id !== dataset.clipId);

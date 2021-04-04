@@ -33,10 +33,10 @@ export const Media = ({
   ) => void;
 }) => {
   const seeking = useRef(false);
-  const seekOn = useCallback((_e) => {
+  const seekOn = useCallback(() => {
     seeking.current = true;
   }, []);
-  const seekOff = useCallback((_e) => {
+  const seekOff = useCallback(() => {
     seeking.current = false;
   }, []);
 
@@ -56,7 +56,7 @@ export const Media = ({
     onTimeUpdate: useCallback(
       (e) => {
         const media = e.target as HTMLVideoElement | HTMLAudioElement;
-        const wasSeeking = seeking.current;
+        // const wasSeeking = seeking.current;
         onTimeUpdate(media, seeking, looping);
         // if (wasSeeking) blur(e)
       },

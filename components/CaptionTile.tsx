@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import cn from "classnames";
 import { usePrevious } from "../utils/usePrevious";
 import { WaveformItem } from "../waveform/WaveformState";
@@ -48,11 +43,10 @@ export function CaptionTile({
     onEditingStateChange(true, uuid);
   }, [onEditingStateChange, uuid]);
   const stopEditing = useCallback(() => {
-    if (text !== inputText)
-      onSubmitText(uuid, inputText);
+    if (text !== inputText) onSubmitText(uuid, inputText);
     setEditing(false);
     onEditingStateChange(false, uuid);
-  }, [onEditingStateChange, uuid, inputText, text]);
+  }, [text, inputText, onSubmitText, uuid, onEditingStateChange]);
 
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -99,22 +93,24 @@ export function CaptionTile({
         <div className={css.captionTiming}>
           {toCleanTimestamp(start)} - {toCleanTimestamp(end)}
         </div>
-        {<div
-          className={cn(css.captionText, { [css.editing]: editing })}
-          onDoubleClick={handleDoubleClickText}
-        >
-          {text}
-          <form className={cn(css.captionForm, { [css.editing]: editing })}>
-            <textarea
-              className={css.captionTextArea}
-              onFocus={startEditing}
-              onBlur={handleBlurTextInput}
-              ref={textAreaRef}
-              value={inputText}
-              onChange={handleChangeTextInput}
-            ></textarea>
-          </form>
-        </div>}
+        {
+          <div
+            className={cn(css.captionText, { [css.editing]: editing })}
+            onDoubleClick={handleDoubleClickText}
+          >
+            {text}
+            <form className={cn(css.captionForm, { [css.editing]: editing })}>
+              <textarea
+                className={css.captionTextArea}
+                onFocus={startEditing}
+                onBlur={handleBlurTextInput}
+                ref={textAreaRef}
+                value={inputText}
+                onChange={handleChangeTextInput}
+              ></textarea>
+            </form>
+          </div>
+        }
       </div>
 
       <section className={css.captionTileMenu}>
