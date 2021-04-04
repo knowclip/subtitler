@@ -42,7 +42,6 @@ export function useWaveformMediaTimeUpdate(
       const currentSelection = state.selection;
 
       const newSelectionCandidate = getNewWaveformSelectionAtFromSubset(
-        currentSelection,
         waveformItems,
         regions,
         newMilliseconds
@@ -159,33 +158,10 @@ function viewBoxStartMsOnTimeUpdate(
 }
 
 export const getNewWaveformSelectionAtFromSubset = (
-  currentSelection: WaveformState["selection"],
   newWaveformItems: Record<string, WaveformItem>,
   regions: WaveformRegion[],
   newMs: number
 ): WaveformState["selection"] => {
-  // const newRegionAtCurrentRegionPosition =
-  //   currentSelection && regions[currentSelection.regionIndex];
-  // const itemIsSameAsOldSelection =
-  //   newRegionAtCurrentRegionPosition === currentSelection?.region;
-  // console.log(
-  //   "hiiiii",
-  //   regions.length,
-  //   !currentSelection ||
-  //     (itemIsSameAsOldSelection &&
-  //       newRegionAtCurrentRegionPosition &&
-  //       newMs >= newRegionAtCurrentRegionPosition.start &&
-  //       newMs <= getRegionEnd(regions, currentSelection.regionIndex))
-  // );
-  // if (
-  //   !currentSelection ||
-  //   (itemIsSameAsOldSelection &&
-  //     newRegionAtCurrentRegionPosition &&
-  //     newMs >= newRegionAtCurrentRegionPosition.start &&
-  //     newMs <= getRegionEnd(regions, currentSelection.regionIndex))
-  // )
-  //   return currentSelection;
-
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
 
@@ -194,10 +170,10 @@ export const getNewWaveformSelectionAtFromSubset = (
     if (newMs >= region.start && newMs < getRegionEnd(regions, i)) {
       const overlappedItemId = region.itemIds.find(
         (id) =>
-        newMs >= newWaveformItems[id].start &&
-        newMs < newWaveformItems[id].end
-        );
-        const overlappedItem = overlappedItemId
+          newMs >= newWaveformItems[id].start &&
+          newMs < newWaveformItems[id].end
+      );
+      const overlappedItem = overlappedItemId
         ? newWaveformItems[overlappedItemId]
         : null;
       return overlappedItem
