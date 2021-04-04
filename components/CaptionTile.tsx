@@ -3,16 +3,17 @@ import cn from "classnames";
 import { usePrevious } from "../utils/usePrevious";
 import { WaveformItem } from "../waveform/WaveformState";
 import css from "./CaptionTile.module.scss";
-import { msToSeconds } from "../waveform/utils";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 import { toTimestamp } from "../waveform/toTimestamp";
 import { Caption } from "../utils/caption";
+import { WaveformRegion } from "../utils/calculateRegions";
 
 export function CaptionTile({
   caption,
   waveformItem,
   highlighted,
-  setMediaCurrentTime,
+  region,
+  highlightClip,
   onEditingStateChange,
   onChangeText,
   onSubmitText,
@@ -22,7 +23,8 @@ export function CaptionTile({
   waveformItem: WaveformItem;
   index: number;
   highlighted: boolean;
-  setMediaCurrentTime: (seconds: number) => void;
+  region: WaveformRegion,
+  highlightClip: (region: WaveformRegion, clip: WaveformItem) => void;
   onEditingStateChange: (editing: boolean, id: string) => void;
   onChangeText: (text: string) => void;
   onSubmitText: (id: string, text: string) => void;
@@ -34,9 +36,9 @@ export function CaptionTile({
 
   const [inputText, setInputText] = useState(text);
 
-  const highlightClip = useCallback(() => {
-    setMediaCurrentTime(msToSeconds(start));
-  }, [setMediaCurrentTime, start]);
+  const handleClick = useCallback(() => {
+    highlightClip(region, waveformItem);
+  }, [highlightClip, region, waveformItem]);
 
   const startEditing = useCallback(() => {
     setEditing(true);
@@ -87,7 +89,7 @@ export function CaptionTile({
     <article
       id={getCaptionArticleId(uuid)}
       className={cn(css.captionTile, { [css.highlighted]: highlighted })}
-      onClick={highlighted ? undefined : highlightClip}
+      onClick={highlighted ? undefined : handleClick}
     >
       <div className={css.captionTileMain}>
         <div className={css.captionTiming}>

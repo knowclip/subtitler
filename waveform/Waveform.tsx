@@ -29,6 +29,7 @@ import { WaveformItem, WaveformState } from "./WaveformState";
 import css from "./Waveform.module.scss";
 import { getClipRectProps } from "./getClipRectProps";
 import { Clips } from "./WaveformClips";
+import { WaveformRegion } from "../utils/calculateRegions";
 
 type WaveformEventHandlers = {
   onWaveformDrag: (action: WaveformDragCreate) => void;
@@ -42,12 +43,14 @@ export default function Waveform({
   durationSeconds,
   imageUrls,
   playerRef,
+  selectItem,
   ...waveformEventHandlers
 }: {
   waveform: WaveformInterface;
   durationSeconds: number;
   imageUrls: string[];
   playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
+  selectItem: (region: WaveformRegion, clip: WaveformItem) => void
 } & WaveformEventHandlers) {
   const height = WAVEFORM_HEIGHT; // + subtitles.totalTracksCount * SUBTITLES_CHUNK_HEIGHT
 
@@ -65,21 +68,7 @@ export default function Waveform({
     ...waveformEventHandlers,
   });
 
-  const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
-  const clips = useMemo(() => {
-    return waveform.regions.flatMap((region) => {
-      return region.itemIds.flatMap((itemId) => {
-        const item = waveform.items[itemId];
-        return item.start === region.start ? item : [];
-      });
-    });
-  }, [
-    waveform.regions,
-    waveform.items,
-  ]);
-
-  const { regions, items } = waveform;
-  console.log({ clips, regions, items });
+  const highlightedClipId = selection?.item?.type === "Clip" ? selection.item.id : null;
 
   return (
     <svg
@@ -102,11 +91,13 @@ export default function Waveform({
           height={height}
         />
         <Clips
-          clips={clips}
+          waveformItems={waveform.items}
+          regions={waveform.regions}
           highlightedClipId={highlightedClipId}
           height={height}
           playerRef={playerRef}
           pixelsPerSecond={pixelsPerSecond}
+          selectItem={selectItem}
         />
         {pendingAction && (
           <PendingWaveformItem
@@ -338,7 +329,7 @@ function useWaveformMouseActions({
       if (playerRef.current) {
         const newTime = getTimeAfterMouseUp(
           pendingAction,
-          state.selection,
+          state.selection?.item || null,
           dataset,
           ms
         );

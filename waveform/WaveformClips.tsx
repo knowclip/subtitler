@@ -1,23 +1,23 @@
 import React, { MutableRefObject, useCallback } from "react";
-import cn from 'classnames'
+import cn from "classnames";
 import { getClipRectProps } from "./getClipRectProps";
 import {
-  msToSeconds,
-  setCursorX,
   msToPixels,
   SELECTION_BORDER_MILLISECONDS,
 } from "./utils";
-import { Clip } from "./WaveformState";
-import css from './Waveform.module.scss'
+import { Clip, WaveformItem } from "./WaveformState";
+import css from "./Waveform.module.scss";
+import { WaveformRegion } from "../utils/calculateRegions";
 
 type ClipProps = {
-  id: string;
-  start: number;
-  end: number;
+  clip: Clip;
+  region: WaveformRegion;
+  regionIndex: number;
   isHighlighted: boolean;
   height: number;
   index: number;
   pixelsPerSecond: number;
+  selectItem: (region: WaveformRegion, clip: WaveformItem) => void;
 };
 type ClipClickDataProps = {
   "data-clip-id": string;
@@ -27,117 +27,112 @@ type ClipClickDataProps = {
   "data-clip-is-highlighted"?: number;
 };
 
-export const Clips = React.memo(
-  ({
-    clips,
-    highlightedClipId,
-    height,
-    playerRef,
-    pixelsPerSecond,
-  }: {
-    clips: Clip[];
-    highlightedClipId: string | null;
-    height: number;
-    playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
-    pixelsPerSecond: number;
-  }) => {
-    const handleClick = useCallback(
-      (e) => {
-        const { dataset } = e.target;
-        if (dataset && dataset.clipId) {
-          if (!dataset.clipIsHighlighted) {
-            const player = playerRef.current;
-            if (player)
-              player.currentTime = msToSeconds(clips[dataset.clipIndex].start);
-            setCursorX(
-              msToPixels(clips[dataset.clipIndex].start, pixelsPerSecond)
+const ClipsBase = ({
+  waveformItems,
+  regions,
+  highlightedClipId,
+  height,
+  playerRef,
+  pixelsPerSecond,
+  selectItem,
+}: {
+  waveformItems: Record<string, WaveformItem>;
+  regions: WaveformRegion[];
+  highlightedClipId: string | null;
+  height: number;
+  playerRef: MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
+  pixelsPerSecond: number;
+  selectItem: (region: WaveformRegion, clip: WaveformItem) => void;
+}) => {
+
+  return (
+    // className={$.waveformClipsContainer}
+    <g>
+      {regions.flatMap((region, i) => {
+        return region.itemIds.flatMap((id) => {
+          const clip = waveformItems[id];
+          if (clip.type === "Clip")
+            return (
+              <WaveformClip
+                clip={clip}
+                region={region}
+                regionIndex={i}
+                index={i}
+                key={clip.id}
+                isHighlighted={clip.id === highlightedClipId}
+                height={height}
+                pixelsPerSecond={pixelsPerSecond}
+                selectItem={selectItem}
+              />
             );
-          }
-          const currentSelected = document.querySelector(
-            "." + css.highlightedClip
-          );
-          if (currentSelected)
-            currentSelected.classList.remove(css.highlightedClip);
-          const newSelected = document.querySelector(
-            `.${css.waveformClip}[data-clip-id="${dataset.clipId}"]`
-          );
-          if (newSelected) newSelected.classList.add(css.highlightedClip);
-        }
-      },
-      [clips, pixelsPerSecond, playerRef]
-    );
+        });
+      })}
+    </g>
+  );
+};
 
-    return (
-      // className={$.waveformClipsContainer} 
-      <g onClick={handleClick}>
-        {clips.map((clip, i) => (
-          <WaveformClip
-            {...clip}
-            index={i}
-            key={clip.id}
-            isHighlighted={clip.id === highlightedClipId}
-            height={height}
-            pixelsPerSecond={pixelsPerSecond}
-          />
-        ))}
-      </g>
-    );
-  }
-);
+export const Clips = React.memo(ClipsBase);
 
-const WaveformClip = React.memo(
-  ({
-    id,
-    start,
-    end,
-    isHighlighted,
-    height,
-    index,
-    pixelsPerSecond,
-  }: ClipProps) => {
-    const clickDataProps: ClipClickDataProps = {
-      "data-clip-id": id,
-      "data-clip-start": start,
-      "data-clip-end": end,
-      "data-clip-index": index,
-    };
-    if (isHighlighted) clickDataProps["data-clip-is-highlighted"] = 1;
+const WaveformClipBase = ({
+  clip,
+  isHighlighted,
+  height,
+  index,
+  pixelsPerSecond,
+  selectItem,
+  region,
+  regionIndex,
+}: ClipProps) => {
+  const { id, start, end } = clip;
+  const clickDataProps: ClipClickDataProps = {
+    "data-clip-id": id,
+    "data-clip-start": start,
+    "data-clip-end": end,
+    "data-clip-index": index,
+  };
+  if (isHighlighted) clickDataProps["data-clip-is-highlighted"] = 1;
 
-    return (
-      <g id={id} {...clickDataProps}>
-        <rect
-          className={cn(
-            css.waveformClip,
-            { [css.highlightedClip]: isHighlighted },
-            // $.waveformClip
-          )}
-          {...getClipRectProps(
-            msToPixels(start, pixelsPerSecond),
-            msToPixels(end, pixelsPerSecond),
-            height
-          )}
-          {...clickDataProps}
-        />
 
-        <rect
-          className={css.waveformClipBorder}
-          x={msToPixels(start, pixelsPerSecond)}
-          y="0"
-          width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
-          height={height}
-          {...clickDataProps}
-        />
-        <rect
-          className={cn(css.waveformClipBorder, {
-            [css.highlightedClipBorder]: isHighlighted,
-          })}
-          x={msToPixels(end - SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
-          y="0"
-          width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
-          height={height}
-          {...clickDataProps}
-        />
-      </g>
-    );
-  }
-);
+  const handleClick = useCallback(() => {
+    if (!isHighlighted) selectItem(region, clip);
+  }, [clip, region, selectItem, isHighlighted]);
+
+  return (
+    <g id={id} {...clickDataProps} onClick={handleClick}>
+      <rect
+        className={cn(
+          css.waveformClip,
+          { [css.highlightedClip]: isHighlighted }
+          // $.waveformClip
+        )}
+        {...getClipRectProps(
+          msToPixels(start, pixelsPerSecond),
+          msToPixels(end, pixelsPerSecond),
+          height
+        )}
+        {...clickDataProps}
+      />
+
+      <rect
+        className={css.waveformClipBorder}
+        x={msToPixels(start, pixelsPerSecond)}
+        y="0"
+        width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
+        height={height}
+        {...clickDataProps}
+      />
+      <rect
+        className={cn(css.waveformClipBorder, {
+          [css.highlightedClipBorder]: isHighlighted,
+        })}
+        x={msToPixels(end - SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
+        y="0"
+        width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
+        height={height}
+        {...clickDataProps}
+      />
+    </g>
+  );
+};
+
+export const WaveformClip = React.memo(WaveformClipBase);

@@ -22,7 +22,11 @@ import {
 } from "../waveform/WaveformEvent";
 import css from "./HomeEditor.module.scss";
 import scrollIntoView from "scroll-into-view-if-needed";
-import { CLIP_THRESHOLD_MILLSECONDS, secondsToMs } from "../waveform/utils";
+import {
+  CLIP_THRESHOLD_MILLSECONDS,
+  msToSeconds,
+  secondsToMs,
+} from "../waveform/utils";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 import { bound } from "../utils/bound";
 import { CaptionTile } from "./CaptionTile";
@@ -60,7 +64,6 @@ function reducer(
   state: CaptionsEditorState,
   action: Action
 ): CaptionsEditorState {
-  console.log({ action, state });
   switch (action.type) {
     case "ADD_ITEM": {
       const { item } = action;
@@ -88,10 +91,7 @@ function reducer(
         state.waveformRegions.length - 1
       );
       const target = state.waveformItems[id];
-      const boundedDeltaX = bound(deltaX, [
-        0 - target.start,
-        end - target.end,
-      ]);
+      const boundedDeltaX = bound(deltaX, [0 - target.start, end - target.end]);
 
       const moved = {
         ...target,
@@ -346,10 +346,12 @@ export function HomeEditor({
     onTimeUpdate,
     resetWaveformState,
     state: { selection, durationSeconds },
+    selectItem,
   } = waveform;
   usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
 
-  const highlightedClipId = selection?.type === "Clip" ? selection.id : null;
+  const highlightedClipId =
+    selection?.item?.type === "Clip" ? selection.item.id : null;
 
   const reload = useCallback(() => {
     const yes = confirm("Discard your work and start again?");
@@ -430,16 +432,18 @@ export function HomeEditor({
       const text = stringifySync(nodes, { format: "SRT" });
       download(fileSelection!.name.replace(/(\.*)?$/, "") + ".srt", text);
     } catch (err) {
-      console.log("Problem exporting");
+      console.error("Problem exporting");
       throw err;
     }
   }, [captions, fileSelection, waveformItems]);
 
-  const setMediaCurrentTime = useCallback(
-    (seconds: number) => {
-      if (playerRef.current) playerRef.current.currentTime = seconds;
+  const highlightClip = useCallback(
+    (region: WaveformRegion, clip: WaveformItem) => {
+      selectItem(region, clip);
+      if (playerRef.current)
+        playerRef.current.currentTime = msToSeconds(clip.start);
     },
-    [playerRef]
+    [selectItem]
   );
   const previousHighlightedClip = usePrevious(highlightedClipId);
   useEffect(() => {
@@ -485,7 +489,7 @@ export function HomeEditor({
       currentCaption &&
       currentWaveformItem &&
       secondsToMs(playerRef.current?.currentTime || Infinity) <
-        currentWaveformItem.end
+        currentWaveformItem.item.end
     )
       setCurrentCaptionText(currentCaption.text);
     else setCurrentCaptionText(null);
@@ -574,7 +578,8 @@ export function HomeEditor({
                           caption={captions[id]}
                           waveformItem={item}
                           highlighted={id === highlightedClipId}
-                          setMediaCurrentTime={setMediaCurrentTime}
+                          region={region}
+                          highlightClip={highlightClip}
                           onEditingStateChange={handleChangeCaptionEditing}
                           onSubmitText={handleSubmitCaptionText}
                           onChangeText={setCurrentCaptionText}
@@ -640,6 +645,7 @@ export function HomeEditor({
           onWaveformDrag={handleWaveformDrag}
           onClipDrag={handleClipDrag}
           onClipEdgeDrag={handleClipEdgeDrag}
+          selectItem={highlightClip}
         />
       </main>
 

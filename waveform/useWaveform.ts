@@ -31,6 +31,13 @@ export function useWaveform(
     [dispatch]
   );
 
+  const selectItem = useCallback(
+    (region: WaveformRegion, item: WaveformItem) => {
+      dispatch({ type: "SELECT_ITEM", region, item, regionIndex: regions.indexOf(region) });
+    },
+    [regions]
+  );
+
   const waveformInterface = {
     svgRef,
     state,
@@ -38,6 +45,7 @@ export function useWaveform(
     resetWaveformState,
     regions,
     items,
+    selectItem: selectItem,
   };
 
   return {
@@ -56,7 +64,7 @@ export type SetWaveformCursorPosition = {
   type: "NAVIGATE_TO_TIME";
   ms: number;
   viewBoxStartMs?: number;
-  selection?: WaveformItem | null;
+  selection?: { regionIndex: number, region: WaveformRegion, item: WaveformItem } | null;
 };
 export type WaveformAction =
   | SetWaveformCursorPosition
@@ -64,7 +72,8 @@ export type WaveformAction =
   | { type: "CONTINUE_WAVEFORM_MOUSE_ACTION"; ms: number }
   | { type: "CLEAR_WAVEFORM_MOUSE_ACTION" }
   | { type: "RESET"; durationSeconds: number }
-  | { type: "ZOOM"; delta: number; svgWidth: number };
+  | { type: "ZOOM"; delta: number; svgWidth: number }
+  | { type: "SELECT_ITEM"; region: WaveformRegion, regionIndex: number, item: WaveformItem };
 
 function updateViewState(
   state: WaveformState,
@@ -129,6 +138,17 @@ function updateViewState(
         ]),
       };
     }
+
+    case "SELECT_ITEM":
+      return {
+        ...state,
+        selection: {
+          region: action.region,
+          regionIndex: action.regionIndex,
+          item: action.item,
+        },
+      };
+
     default:
       return state;
   }
