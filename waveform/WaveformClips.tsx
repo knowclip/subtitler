@@ -1,10 +1,11 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useMemo } from "react";
 import cn from "classnames";
 import { getClipRectProps } from "./getClipRectProps";
-import { msToPixels, SELECTION_BORDER_MILLISECONDS } from "./utils";
+import { msToPixels, pixelsToMs, SELECTION_BORDER_MILLISECONDS } from "./utils";
 import { Clip, WaveformItem, WaveformState } from "./WaveformState";
 import css from "./Waveform.module.scss";
-import { WaveformRegion } from "../utils/calculateRegions";
+import { getRegionEnd, WaveformRegion } from "../utils/calculateRegions";
+import { MAX_WAVEFORM_VIEWPORT_WIDTH } from "./useWaveform";
 
 type ClipClickDataProps = {
   "data-clip-id": string;
@@ -14,13 +15,24 @@ type ClipClickDataProps = {
   "data-clip-is-highlighted"?: number;
 };
 
+type TouchingClipsGroup = {
+  clips: ClipDisplaySpecs[];
+  slots: Array<string | null>;
+};
+type ClipDisplaySpecs = {
+  clip: Clip;
+  region: WaveformRegion;
+  regionIndex: number;
+  level: number;
+};
+
 export const Clips = React.memo(ClipsBase);
 function ClipsBase({
   waveformItems,
   regions,
   highlightedClipId,
   height,
-  state: { pixelsPerSecond },
+  state: { pixelsPerSecond, viewBoxStartMs },
 }: {
   waveformItems: Record<string, WaveformItem>;
   regions: WaveformRegion[];
@@ -30,70 +42,73 @@ function ClipsBase({
 }) {
   let highlightedClipDisplay: ReactNode;
 
-  type Group = {
-    clips: ClipDisplaySpecs[];
-    slots: Array<string | null>;
-  };
-  type ClipDisplaySpecs = {
-    clip: Clip;
-    region: WaveformRegion;
-    regionIndex: number;
-    level: number;
-  };
+  const visibleGroups = useMemo(
+    () =>
+      regions.reduce(
+        (acc, region, regionIndex) => {
+          if (
+            region.start >
+              viewBoxStartMs +
+                pixelsToMs(MAX_WAVEFORM_VIEWPORT_WIDTH, pixelsPerSecond) ||
+            getRegionEnd(regions, regionIndex) < viewBoxStartMs
+          ) {
+            return acc;
+          }
 
-  const g = regions.reduce(
-    (acc, region, regionIndex) => {
-      const lastGroup: Group = acc[acc.length - 1];
-      const { clips, slots } = lastGroup;
+          const lastGroup: TouchingClipsGroup = acc[acc.length - 1];
+          const { clips, slots } = lastGroup;
 
-      const currentlyOverlapping = region.itemIds.length;
-      if (!currentlyOverlapping) {
-        if (!lastGroup || lastGroup.clips.length)
-          acc.push({
-            clips: [],
-            slots: [],
+          const currentlyOverlapping = region.itemIds.length;
+          if (!currentlyOverlapping) {
+            if (!lastGroup || lastGroup.clips.length)
+              acc.push({
+                clips: [],
+                slots: [],
+              });
+            return acc;
+          }
+
+          slots.forEach((slot, i) => {
+            if (!region.itemIds.some((id) => id === slot)) {
+              slots[i] = null;
+            }
           });
-        return acc;
-      }
 
-      slots.forEach((slot, i) => {
-        if (!region.itemIds.some((id) => id === slot)) {
-          slots[i] = null;
-        }
-      });
+          const startingNow = region.itemIds.flatMap((id) => {
+            const clip = waveformItems[id];
+            return clip.type === "Clip" && region.start === clip.start
+              ? clip
+              : [];
+          });
 
-      const startingNow = region.itemIds.flatMap((id) => {
-        const clip = waveformItems[id];
-        return clip.type === "Clip" && region.start === clip.start ? clip : [];
-      });
+          startingNow.forEach((clip) => {
+            const emptySlot = slots.findIndex((id) => !id);
+            const slotIndex = emptySlot === -1 ? slots.length : emptySlot;
+            slots[slotIndex] = clip.id;
 
-      startingNow.forEach((clip) => {
-        const emptySlot = slots.findIndex((id) => !id);
-        const slotIndex = emptySlot === -1 ? slots.length : emptySlot;
-        slots[slotIndex] = clip.id;
+            const specs = {
+              clip,
+              region,
+              regionIndex,
+              level: slotIndex,
+            };
+            clips.push(specs);
+          });
 
-        const specs = {
-          clip,
-          region,
-          regionIndex,
-          level: slotIndex,
-        };
-        clips.push(specs);
-      });
-
-      return acc;
-    },
-    [{ clips: [], slots: [] }] as {
-      clips: ClipDisplaySpecs[];
-      slots: Array<string | null>;
-    }[]
+          return acc;
+        },
+        [{ clips: [], slots: [] }] as {
+          clips: ClipDisplaySpecs[];
+          slots: Array<string | null>;
+        }[]
+      ),
+    [pixelsPerSecond, regions, viewBoxStartMs, waveformItems]
   );
 
   return (
-    // className={$.waveformClipsContainer}
     <g>
-      {g.flatMap((group) =>
-        group.clips.flatMap(({ clip, regionIndex, region, level }) => {
+      {visibleGroups.flatMap(({ clips, slots }) =>
+        clips.flatMap(({ clip, regionIndex, region, level }) => {
           const isHighlighted = clip.id === highlightedClipId;
           const display = (
             <WaveformClip
@@ -102,7 +117,7 @@ function ClipsBase({
               regionIndex={regionIndex}
               key={clip.id}
               isHighlighted={isHighlighted}
-              height={height - (group.slots.length - 1) * 10}
+              height={height - (slots.length - 1) * 10}
               pixelsPerSecond={pixelsPerSecond}
               level={level}
             />
