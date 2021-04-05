@@ -279,7 +279,6 @@ function useWaveformMouseActions({
     React.MouseEvent<SVGElement>
   > = useCallback(
     (e) => {
-      e.preventDefault();
       const msAtMouse = waveformTimeAtMousePosition(
         e,
         e.currentTarget,
@@ -394,6 +393,7 @@ function getWaveformMousedownAction(
 ): WaveformDragAction {
   const ms = event.milliseconds;
   const timeStamp = event.timeStamp;
+  
   if (
     dataset &&
     dataset.clipId &&

@@ -142,7 +142,7 @@ function WaveformClipBase({
     "data-region-index": regionIndex,
   };
   if (isHighlighted) clickDataProps["data-clip-is-highlighted"] = 1;
-
+  const y = level * 10;
   return (
     <g id={id} {...clickDataProps}>
       <rect
@@ -156,14 +156,19 @@ function WaveformClipBase({
           msToPixels(end, pixelsPerSecond),
           height
         )}
-        y={level * 10}
+        y={y}
+        style={
+          isHighlighted
+            ? undefined
+            : { fill: `hsl(205, 10%, ${40 + 10 * level}%)` }
+        }
         {...clickDataProps}
       />
 
       <rect
         className={css.waveformClipBorder}
         x={msToPixels(start, pixelsPerSecond)}
-        y={level * 1}
+        y={0}
         width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
         height={height}
         {...clickDataProps}
@@ -173,7 +178,7 @@ function WaveformClipBase({
           [css.highlightedClipBorder]: isHighlighted,
         })}
         x={msToPixels(end - SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
-        y="0"
+        y={y}
         width={msToPixels(SELECTION_BORDER_MILLISECONDS, pixelsPerSecond)}
         height={height}
         {...clickDataProps}

@@ -343,7 +343,7 @@ export function HomeEditor({
         });
       }
       const isHighlighted = draggedClip.id === highlightedClipId;
-      if(!isHighlighted) selectItem(region, draggedClip);
+      if (!isHighlighted) selectItem(region, draggedClip);
 
       if (playerRef.current) {
         const clipStart = moveImminent
@@ -385,10 +385,10 @@ export function HomeEditor({
       const draggedClip = waveformItems[clipId];
 
       const stretchImminent =
-      timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
+        timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
 
       const isHighlighted = draggedClip.id === highlightedClipId;
-      if(!isHighlighted) selectItem(waveformRegions[regionIndex], draggedClip);
+      if (!isHighlighted) selectItem(waveformRegions[regionIndex], draggedClip);
 
       if (stretchImminent) {
         dispatch({
@@ -403,7 +403,7 @@ export function HomeEditor({
       if (playerRef.current) {
         // if this clip isnt currently selected, just use drag start?
         // if this clip isnt currently selected, use item start.
-        const clipStart = draggedClip.start
+        const clipStart = draggedClip.start;
         const newTimeSeconds =
           !isHighlighted || stretchImminent
             ? bound(msToSeconds(clipStart), [0, waveform.state.durationSeconds])
@@ -414,7 +414,14 @@ export function HomeEditor({
         }
       }
     },
-    [highlightedClipId, selectItem, waveform.selectionDoesntNeedSetAtNextTimeUpdate, waveform.state.durationSeconds, waveformItems, waveformRegions]
+    [
+      highlightedClipId,
+      selectItem,
+      waveform.selectionDoesntNeedSetAtNextTimeUpdate,
+      waveform.state.durationSeconds,
+      waveformItems,
+      waveformRegions,
+    ]
   );
 
   const deleteCaption = useCallback(
@@ -714,9 +721,11 @@ export function HomeEditor({
               onTimeUpdate={handleMediaTimeUpdate}
               onMediaLoaded={resetWaveformState}
             />
-            <div className={cn(css.currentCaptionText, {
-              [css.audio]: fileSelection.type === "AUDIO",
-            })}>
+            <div
+              className={cn(css.currentCaptionText, {
+                [css.audio]: fileSelection.type === "AUDIO",
+              })}
+            >
               <span className={css.currentCaptionTextInner}>
                 {currentCaptionText}
               </span>

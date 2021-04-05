@@ -17,4 +17,3 @@ export type WaveformItem = Clip | {
 };
 
 export type Clip = { type: "Clip", id: string; start: number; end: number };
-type SubtitlesCardBase = any;

@@ -50,6 +50,26 @@ export function useWaveformMediaTimeUpdate(
         return;
       }
 
+      const loopImminent =
+        !wasSeeking &&
+        looping &&
+        !media.paused &&
+        currentSelection?.item &&
+        newMilliseconds >= currentSelection.item.end;
+      console.log({
+        loopImminent,
+        currentSelection: currentSelection?.item.id,
+      });
+      if (loopImminent && currentSelection) {
+        media.currentTime = msToSeconds(currentSelection.item.start);
+        return dispatch({
+          type: "NAVIGATE_TO_TIME",
+          ms: currentSelection.item.start,
+          viewBoxStartMs: state.viewBoxStartMs,
+          selection: currentSelection,
+        });
+      }
+
       const newSelectionCandidate = getNewWaveformSelectionAt(
         waveformItems,
         regions,
@@ -63,22 +83,6 @@ export function useWaveformMediaTimeUpdate(
       )
         ? newSelectionCandidate
         : null;
-
-      const loopImminent =
-        !wasSeeking &&
-        looping &&
-        !media.paused &&
-        currentSelection?.item &&
-        newMilliseconds >= currentSelection.item.end;
-      if (loopImminent && currentSelection) {
-        media.currentTime = msToSeconds(currentSelection.item.start);
-        return dispatch({
-          type: "NAVIGATE_TO_TIME",
-          ms: currentSelection.item.start,
-          viewBoxStartMs: state.viewBoxStartMs,
-          selection: currentSelection,
-        });
-      }
 
       const svgWidth = elementWidth(svg);
 
@@ -97,7 +101,14 @@ export function useWaveformMediaTimeUpdate(
         ),
       });
     },
-    [svgRef, state, selectionDoesntNeedSetAtNextTimeUpdate, waveformItems, regions, dispatch]
+    [
+      svgRef,
+      state,
+      selectionDoesntNeedSetAtNextTimeUpdate,
+      waveformItems,
+      regions,
+      dispatch,
+    ]
   );
 }
 
@@ -172,49 +183,16 @@ export const getNewWaveformSelectionAt = (
   newMs: number,
   currentSelection: WaveformState["selection"]
 ): WaveformState["selection"] => {
-  const unchangedCurrentSelection =
+  // TODO: optimize for non-seeking (normal playback) case
+  const unchangedCurrentItem =
     currentSelection &&
-    currentSelection.region === regions[currentSelection.regionIndex]
-      ? currentSelection
+    currentSelection.item === newWaveformItems[currentSelection.item.id]
+      ? currentSelection.item
       : null;
-  const stillWithinSameRegion =
-    unchangedCurrentSelection &&
-    newMs >= unchangedCurrentSelection.region.start &&
-    newMs < getRegionEnd(regions, unchangedCurrentSelection.regionIndex);
-  if (unchangedCurrentSelection && stillWithinSameRegion) {
-    return unchangedCurrentSelection;
-  }
-
-  const nextRegionIndex = unchangedCurrentSelection
-    ? unchangedCurrentSelection.regionIndex + 1
-    : null;
-  const nextRegion =
-    typeof nextRegionIndex === "number" ? regions[nextRegionIndex] : null;
-  const withinNextRegion =
-    nextRegion &&
-    typeof nextRegionIndex === "number" &&
-    newMs >= nextRegion.start &&
-    newMs < getRegionEnd(regions, nextRegionIndex);
-  if (
-    withinNextRegion &&
-    typeof nextRegionIndex === "number" &&
-    nextRegion?.itemIds.length
-  ) {
-    const overlappedItemId = nextRegion.itemIds.find(
-      (id) =>
-        newMs >= newWaveformItems[id].start && newMs < newWaveformItems[id].end
-    );
-    const overlappedItem = overlappedItemId
-      ? newWaveformItems[overlappedItemId]
-      : null;
-    return overlappedItem
-      ? {
-          region: nextRegion,
-          item: overlappedItem,
-          regionIndex: nextRegionIndex,
-        }
-      : null;
-  }
+  const stillWithinSameItem =
+    unchangedCurrentItem &&
+    newMs >= unchangedCurrentItem.start &&
+    newMs < unchangedCurrentItem.end;
 
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
@@ -222,11 +200,14 @@ export const getNewWaveformSelectionAt = (
     if (region.start > newMs) break;
 
     if (newMs >= region.start && newMs < getRegionEnd(regions, i)) {
-      const overlappedItemId = region.itemIds.find(
-        (id) =>
-          newMs >= newWaveformItems[id].start &&
-          newMs < newWaveformItems[id].end
-      );
+      const overlappedItemId =
+        unchangedCurrentItem && stillWithinSameItem
+          ? unchangedCurrentItem.id
+          : region.itemIds.find(
+              (id) =>
+                newMs >= newWaveformItems[id].start &&
+                newMs < newWaveformItems[id].end
+            );
       const overlappedItem = overlappedItemId
         ? newWaveformItems[overlappedItemId]
         : null;
