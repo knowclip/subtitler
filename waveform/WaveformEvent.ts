@@ -22,13 +22,17 @@ export default class WaveformMousedownEvent extends Event {
 }
 
 export class WaveformDragEvent extends Event {
+  mouseDown: WaveformMousedownEvent;
   action: WaveformDragAction;
 
-  constructor(action: WaveformDragAction) {
+  constructor(mouseDown: WaveformMousedownEvent, action: WaveformDragAction) {
     super("waveformDrag");
+    this.mouseDown = mouseDown;
     this.action = action;
   }
 }
+
+export type WaveformDragOf<T extends WaveformDragAction> = WaveformDragEvent & { action: T }
 
 export type WaveformDragAction =
   | WaveformDragCreate
@@ -40,18 +44,23 @@ export type WaveformDragCreate = {
   start: number;
   end: number;
   waveformState: WaveformState;
+  timeStamp: number;
 };
 export type WaveformDragMove = {
   type: "MOVE";
   start: number;
   end: number;
-  clipToMove: { id: string; index: number; start: number; end: number };
+  clipId: string;
+  regionIndex: number;
   waveformState: WaveformState;
+  timeStamp: number;
 };
 export type WaveformDragStretch = {
   type: "STRETCH";
   start: number;
   end: number;
-  clipToStretch: { id: string; index: number; start: number; end: number };
+  clipId: string;
+  regionIndex: number,
   waveformState: WaveformState;
+  timeStamp: number;
 };

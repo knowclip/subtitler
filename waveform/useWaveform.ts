@@ -1,13 +1,11 @@
-import { useCallback, useMemo, useReducer, useRef } from "react";
+import { useCallback, useReducer, useRef } from "react";
 import { pixelsToMs, secondsToMs } from "./utils";
 import { bound } from "../utils/bound";
 
 import { useWaveformMediaTimeUpdate } from "./useWaveformMediaTimeUpdate";
 import { WaveformDragAction } from "./WaveformEvent";
-import {
-  WaveformItem,
-  WaveformState,
-} from "./WaveformState";
+import { WaveformItem, WaveformState } from "./WaveformState";
+import { WaveformRegion } from "../utils/calculateRegions";
 
 const initialState: WaveformState = {
   cursorMs: 0,
@@ -20,12 +18,10 @@ const initialState: WaveformState = {
 
 export type WaveformInterface = ReturnType<typeof useWaveform>;
 
-export function useWaveform(waveformItems: WaveformItem[]) {
-  const limitWaveformItemsToDisplayed = limitSelectorToDisplayedItems(
-    (waveformItem: WaveformItem) => waveformItem.start,
-    (waveformItem: WaveformItem) => waveformItem.end
-  );
-
+export function useWaveform(
+  regions: WaveformRegion[],
+  items: Record<string, WaveformItem>
+) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [state, dispatch] = useReducer(updateViewState, initialState);
   const resetWaveformState = useCallback(
@@ -35,36 +31,33 @@ export function useWaveform(waveformItems: WaveformItem[]) {
     [dispatch]
   );
 
-  const visibleWaveformItems = useMemo(
-    () =>
-      limitWaveformItemsToDisplayed(
-        waveformItems,
-        state.viewBoxStartMs,
-        state.pixelsPerSecond
-      ),
-    [
-      limitWaveformItemsToDisplayed,
-      waveformItems,
-      state.viewBoxStartMs,
-      state.pixelsPerSecond,
-    ]
+  const selectItem = useCallback(
+    (region: WaveformRegion, item: WaveformItem) => {
+      dispatch({ type: "SELECT_ITEM", region, item, regionIndex: regions.indexOf(region) });
+    },
+    [regions]
   );
+
+  const selectionDoesntNeedSetAtNextTimeUpdate = useRef(false);
 
   const waveformInterface = {
     svgRef,
     state,
     dispatch,
     resetWaveformState,
-    visibleWaveformItems,
-    waveformItems,
+    regions,
+    items,
+    selectItem: selectItem,
+    selectionDoesntNeedSetAtNextTimeUpdate,
   };
 
   return {
     onTimeUpdate: useWaveformMediaTimeUpdate(
       svgRef,
+      selectionDoesntNeedSetAtNextTimeUpdate,
       dispatch,
-      visibleWaveformItems,
-      waveformItems,
+      items,
+      regions,
       state
     ),
     ...waveformInterface,
@@ -75,7 +68,7 @@ export type SetWaveformCursorPosition = {
   type: "NAVIGATE_TO_TIME";
   ms: number;
   viewBoxStartMs?: number;
-  selection?: WaveformItem | null;
+  selection?: { regionIndex: number, region: WaveformRegion, item: WaveformItem } | null;
 };
 export type WaveformAction =
   | SetWaveformCursorPosition
@@ -83,7 +76,8 @@ export type WaveformAction =
   | { type: "CONTINUE_WAVEFORM_MOUSE_ACTION"; ms: number }
   | { type: "CLEAR_WAVEFORM_MOUSE_ACTION" }
   | { type: "RESET"; durationSeconds: number }
-  | { type: "ZOOM"; delta: number; svgWidth: number };
+  | { type: "ZOOM"; delta: number; svgWidth: number }
+  | { type: "SELECT_ITEM"; region: WaveformRegion, regionIndex: number, item: WaveformItem };
 
 function updateViewState(
   state: WaveformState,
@@ -148,34 +142,20 @@ function updateViewState(
         ]),
       };
     }
+
+    case "SELECT_ITEM":
+      return {
+        ...state,
+        selection: {
+          region: action.region,
+          regionIndex: action.regionIndex,
+          item: action.item,
+        },
+      };
+
     default:
       return state;
   }
 }
 
-const MAX_WAVEFORM_VIEWPORT_WIDTH = 3000;
-
-export const limitSelectorToDisplayedItems = <T>(
-  getStart: (item: T) => number,
-  getEnd: (item: T) => number
-) => (
-  waveformItems: T[],
-  waveformviewBoxStartMs: number,
-  pixelsPerSecond: number
-) => {
-  const result: T[] = [];
-  const xMax =
-    waveformviewBoxStartMs +
-    pixelsToMs(MAX_WAVEFORM_VIEWPORT_WIDTH, pixelsPerSecond);
-  for (const waveformItem of waveformItems) {
-    const itemStart = getStart(waveformItem);
-    if (itemStart > xMax) break;
-
-    const itemEnd = getEnd(waveformItem);
-    // TODO: speed this up with binary search maybe?
-
-    const overlap = itemStart <= xMax && itemEnd >= waveformviewBoxStartMs;
-    if (overlap) result.push(waveformItem);
-  }
-  return result;
-};
+export const MAX_WAVEFORM_VIEWPORT_WIDTH = 3000;

@@ -7,12 +7,10 @@ import {
   setCursorX,
   msToPixels,
 } from "./utils";
-import {
-  WaveformItem,
-  WaveformState,
-} from "./WaveformState";
+import { WaveformItem, WaveformState } from "./WaveformState";
 import { bound } from "../utils/bound";
 import { elementWidth } from "../utils/elementWidth";
+import { getRegionEnd, WaveformRegion } from "../utils/calculateRegions";
 
 const HALF_SECOND = 500;
 export const overlapsSignificantly = (
@@ -24,9 +22,10 @@ export const overlapsSignificantly = (
 
 export function useWaveformMediaTimeUpdate(
   svgRef: MutableRefObject<SVGElement | null>,
+  selectionDoesntNeedSetAtNextTimeUpdate: MutableRefObject<boolean>,
   dispatch: Dispatch<WaveformAction>,
-  visibleWaveformItems: WaveformItem[],
-  waveformItems: WaveformItem[],
+  waveformItems: Record<string, WaveformItem>,
+  regions: WaveformRegion[],
   state: WaveformState
 ) {
   return useCallback(
@@ -35,60 +34,55 @@ export function useWaveformMediaTimeUpdate(
       seeking: MutableRefObject<boolean>,
       looping: boolean
     ) => {
+      const wasSeeking = seeking.current;
+      seeking.current = false;
+
       const svg = svgRef.current;
       if (!svg) return console.error("Svg disappeared");
 
       const newMilliseconds = secondsToMs(media.currentTime);
       const currentSelection = state.selection;
-      const selectionItem = getSelectionWaveformItem(
-        waveformItems,
-        currentSelection
-      );
-      const expandedSelection: WaveformItem | null =
-        currentSelection && selectionItem
-          ? ({
-              type: currentSelection.type,
-              index: currentSelection.index,
 
-              // TODO: accommodate other types
-              start: currentSelection.start,
-              end: currentSelection.end,
-              // @ts-ignore
-              id: currentSelection.id, 
-            } as WaveformItem)
-          : null;
+      if (selectionDoesntNeedSetAtNextTimeUpdate.current) {
+        selectionDoesntNeedSetAtNextTimeUpdate.current = false;
+        setCursorX(msToPixels(newMilliseconds, state.pixelsPerSecond));
 
-      const newSelectionCandidate = getNewWaveformSelectionAtFromSubset(
-        expandedSelection,
-        waveformItems,
-        newMilliseconds
-      );
-
-      const newSelection = isValidNewSelection(
-        expandedSelection,
-        newSelectionCandidate
-      )
-        ? newSelectionCandidate
-        : null;
-      const wasSeeking = seeking.current;
-      seeking.current = false;
+        return;
+      }
 
       const loopImminent =
         !wasSeeking &&
         looping &&
         !media.paused &&
-        currentSelection &&
-        selectionItem &&
-        newMilliseconds >= selectionItem.end;
-      if (loopImminent && currentSelection && selectionItem) {
-        media.currentTime = msToSeconds(selectionItem.start);
-        const action: WaveformAction = {
+        currentSelection?.item &&
+        newMilliseconds >= currentSelection.item.end;
+      console.log({
+        loopImminent,
+        currentSelection: currentSelection?.item.id,
+      });
+      if (loopImminent && currentSelection) {
+        media.currentTime = msToSeconds(currentSelection.item.start);
+        return dispatch({
           type: "NAVIGATE_TO_TIME",
-          ms: selectionItem.start,
+          ms: currentSelection.item.start,
           viewBoxStartMs: state.viewBoxStartMs,
-        };
-        return dispatch(action);
+          selection: currentSelection,
+        });
       }
+
+      const newSelectionCandidate = getNewWaveformSelectionAt(
+        waveformItems,
+        regions,
+        newMilliseconds,
+        currentSelection
+      );
+
+      const newSelection = isValidNewSelection(
+        currentSelection ? currentSelection.item : null,
+        newSelectionCandidate ? newSelectionCandidate.item : null
+      )
+        ? newSelectionCandidate
+        : null;
 
       const svgWidth = elementWidth(svg);
 
@@ -107,17 +101,15 @@ export function useWaveformMediaTimeUpdate(
         ),
       });
     },
-    [dispatch, svgRef, state, waveformItems]
+    [
+      svgRef,
+      state,
+      selectionDoesntNeedSetAtNextTimeUpdate,
+      waveformItems,
+      regions,
+      dispatch,
+    ]
   );
-}
-
-function getSelectionWaveformItem(
-  waveformItems: WaveformItem[],
-  currentSelection: WaveformItem | null
-) {
-  return currentSelection
-    ? waveformItems[currentSelection.index] || null
-    : null;
 }
 
 function isValidNewSelection(
@@ -146,9 +138,10 @@ function viewBoxStartMsOnTimeUpdate(
   state: WaveformState,
   newlySetMs: number,
   svgWidth: number,
-  newSelection: ReturnType<typeof getNewWaveformSelectionAtFromSubset>,
+  newSelection: ReturnType<typeof getNewWaveformSelectionAt>,
   seeking: boolean
 ): number {
+  const newSelectionItem = newSelection?.item || null;
   if (state.pendingAction) return state.viewBoxStartMs;
   const visibleTimeSpan = pixelsToMs(svgWidth, state.pixelsPerSecond);
   const buffer = Math.round(visibleTimeSpan * 0.1);
@@ -157,15 +150,15 @@ function viewBoxStartMsOnTimeUpdate(
   const durationMs = secondsToMs(durationSeconds);
   const currentRightEdge = viewBoxStartMs + visibleTimeSpan;
 
-  if (seeking && newSelection) {
-    if (newSelection.end + buffer >= currentRightEdge)
-      return bound(newSelection.end + buffer - visibleTimeSpan, [
+  if (seeking && newSelectionItem) {
+    if (newSelectionItem.end + buffer >= currentRightEdge)
+      return bound(newSelectionItem.end + buffer - visibleTimeSpan, [
         0,
         durationMs - visibleTimeSpan,
       ]);
 
-    if (newSelection.start - buffer <= viewBoxStartMs)
-      return Math.max(0, newSelection.start - buffer);
+    if (newSelectionItem.start - buffer <= viewBoxStartMs)
+      return Math.max(0, newSelectionItem.start - buffer);
   }
 
   const leftShiftRequired = newlySetMs < viewBoxStartMs;
@@ -175,67 +168,58 @@ function viewBoxStartMsOnTimeUpdate(
 
   const rightShiftRequired = newlySetMs >= currentRightEdge;
   if (rightShiftRequired) {
-    return bound((newSelection ? newSelection.end : newlySetMs) + buffer, [
-      0,
-      durationMs - visibleTimeSpan,
-    ]);
+    return bound(
+      (newSelectionItem ? newSelectionItem.end : newlySetMs) + buffer,
+      [0, durationMs - visibleTimeSpan]
+    );
   }
 
   return state.viewBoxStartMs;
 }
 
-export const getNewWaveformSelectionAtFromSubset = (
-  currentSelection: WaveformItem | null,
-  newWaveformItems: WaveformItem[],
-  newMs: number
-): WaveformItem | null => {
-  const itemAtCurrentSelectionPosition = currentSelection
-    ? newWaveformItems[currentSelection.index]
-    : null;
-  const itemIsSameAsOldSelection =
+export const getNewWaveformSelectionAt = (
+  newWaveformItems: Record<string, WaveformItem>,
+  regions: WaveformRegion[],
+  newMs: number,
+  currentSelection: WaveformState["selection"]
+): WaveformState["selection"] => {
+  // TODO: optimize for non-seeking (normal playback) case
+  const unchangedCurrentItem =
     currentSelection &&
-    itemAtCurrentSelectionPosition &&
-    isItemSameAsOldSelection(currentSelection, itemAtCurrentSelectionPosition);
-  if (
-    itemIsSameAsOldSelection &&
-    itemAtCurrentSelectionPosition &&
-    newMs >= itemAtCurrentSelectionPosition.start &&
-    newMs <= itemAtCurrentSelectionPosition.end
-  )
-    return itemAtCurrentSelectionPosition;
+    currentSelection.item === newWaveformItems[currentSelection.item.id]
+      ? currentSelection.item
+      : null;
+  const stillWithinSameItem =
+    unchangedCurrentItem &&
+    newMs >= unchangedCurrentItem.start &&
+    newMs < unchangedCurrentItem.end;
 
-  const overlapping: WaveformItem[] = [];
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
 
-  for (const clipOrPreview of newWaveformItems) {
-    if (clipOrPreview.start > newMs) break;
+    if (region.start > newMs) break;
 
-    if (newMs >= clipOrPreview.start && newMs <= clipOrPreview.end)
-      overlapping.push(clipOrPreview);
+    if (newMs >= region.start && newMs < getRegionEnd(regions, i)) {
+      const overlappedItemId =
+        unchangedCurrentItem && stillWithinSameItem
+          ? unchangedCurrentItem.id
+          : region.itemIds.find(
+              (id) =>
+                newMs >= newWaveformItems[id].start &&
+                newMs < newWaveformItems[id].end
+            );
+      const overlappedItem = overlappedItemId
+        ? newWaveformItems[overlappedItemId]
+        : null;
+      return overlappedItem
+        ? {
+            region,
+            item: overlappedItem,
+            regionIndex: i,
+          }
+        : null;
+    }
   }
 
-  if (overlapping.length <= 1) return overlapping[0] || null;
-
-  return overlapping.find(({ type }) => type === "Clip") || null;
-};
-
-const isItemSameAsOldSelection = (
-  oldCurrentSelection: WaveformItem,
-  itemAtCurrentSelectionPosition: WaveformItem
-) => {
-  if (oldCurrentSelection.type !== itemAtCurrentSelectionPosition.type)
-    return false;
-  if (
-    oldCurrentSelection.type === "Clip" &&
-    oldCurrentSelection.id ===
-      (itemAtCurrentSelectionPosition as typeof oldCurrentSelection).id
-  )
-    return true;
-  if (
-    oldCurrentSelection.type === "Preview" &&
-    oldCurrentSelection.index ===
-      (itemAtCurrentSelectionPosition as typeof oldCurrentSelection).index
-  )
-    return true;
-
-  return false;
+  return null;
 };
