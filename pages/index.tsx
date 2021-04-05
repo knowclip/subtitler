@@ -30,7 +30,7 @@ export default function Home() {
       const gigabytes = fileBytes / 1024 / 1024 / 1024;
       const tooBig = gigabytes > 2;
 
-      let fileError = tooBig
+      const fileError = tooBig
         ? "File is too big. Please choose a file under 2 GB."
         : null;
       if (fileError || !file) {
