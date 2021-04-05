@@ -18,6 +18,7 @@ import { WaveformItem } from "../waveform/WaveformState";
 import {
   WaveformDragCreate,
   WaveformDragMove,
+  WaveformDragOf,
   WaveformDragStretch,
 } from "../waveform/WaveformEvent";
 import css from "./HomeEditor.module.scss";
@@ -234,6 +235,7 @@ type Action =
     }
   | { type: "RESET"; end: number };
 
+const DRAG_ACTION_TIME_THRESHOLD = 400;
 export function HomeEditor({
   handleChangeLocalFile,
   fileError,
@@ -269,12 +271,31 @@ export function HomeEditor({
 
   const captionIds = useMemo(() => Object.keys(captions), [captions]);
 
+  const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const waveform = useWaveform(waveformRegions, waveformItems);
+  const {
+    onTimeUpdate,
+    resetWaveformState,
+    state: { selection, durationSeconds },
+    selectItem,
+  } = waveform;
+  const highlightedClipId =
+    selection?.item?.type === "Clip" ? selection.item.id : null;
+  usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
+
   const handleWaveformDrag = useCallback(
-    ({ start: startRaw, end: endRaw }: WaveformDragCreate) => {
+    ({
+      action: { start: startRaw, end: endRaw },
+    }: WaveformDragOf<WaveformDragCreate>) => {
       const start = Math.min(startRaw, endRaw);
       const end = Math.max(startRaw, endRaw);
 
-      if (end - start < CLIP_THRESHOLD_MILLSECONDS) return;
+      if (end - start < CLIP_THRESHOLD_MILLSECONDS) {
+        if (playerRef.current) {
+          playerRef.current.currentTime = msToSeconds(endRaw);
+        }
+        return;
+      }
 
       const id = newId();
       const newClip = {
@@ -288,6 +309,10 @@ export function HomeEditor({
         item: newClip,
       });
 
+      if (playerRef.current) {
+        playerRef.current.currentTime = msToSeconds(start);
+      }
+
       setTimeout(() => {
         const button: HTMLTextAreaElement | null = document.querySelector(
           `#${getCaptionArticleId(id)} button`
@@ -298,36 +323,98 @@ export function HomeEditor({
     []
   );
   const handleClipDrag = useCallback(
-    (move: WaveformDragMove) => {
-      const { start, end, clipToMove } = move;
+    ({
+      action: move,
+      mouseDown,
+      timeStamp,
+    }: WaveformDragOf<WaveformDragMove>) => {
+      const { start, end, clipId, regionIndex } = move;
       const deltaX = end - start;
 
-      dispatch({
-        type: "MOVE_ITEM",
-        id: clipToMove.id,
-        deltaX,
-      });
+      const region = waveformRegions[regionIndex];
+      const draggedClip = waveformItems[clipId];
+      const moveImminent =
+        timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
+      if (moveImminent) {
+        dispatch({
+          type: "MOVE_ITEM",
+          id: clipId,
+          deltaX,
+        });
+      }
+      const isHighlighted = draggedClip.id === highlightedClipId;
+      if(!isHighlighted) selectItem(region, draggedClip);
+
+      if (playerRef.current) {
+        const clipStart = moveImminent
+          ? draggedClip.start + deltaX
+          : draggedClip.start;
+        const newTimeSeconds =
+          !isHighlighted || moveImminent
+            ? bound(msToSeconds(clipStart), [0, waveform.state.durationSeconds])
+            : msToSeconds(end);
+        if (playerRef.current.currentTime != newTimeSeconds) {
+          waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
+          playerRef.current.currentTime = newTimeSeconds;
+        }
+      }
     },
-    [dispatch]
+    [
+      waveformRegions,
+      waveformItems,
+      selectItem,
+      highlightedClipId,
+      waveform.state.durationSeconds,
+      waveform.selectionDoesntNeedSetAtNextTimeUpdate,
+    ]
   );
   const handleClipEdgeDrag = useCallback(
-    (stretch: WaveformDragStretch) => {
+    ({
+      action: stretch,
+      timeStamp,
+      mouseDown,
+    }: WaveformDragOf<WaveformDragStretch>) => {
       const {
         start,
         end,
-        clipToStretch,
+        clipId,
+        regionIndex,
         waveformState: { durationSeconds },
       } = stretch;
 
-      dispatch({
-        type: "STRETCH_ITEM",
-        id: clipToStretch.id,
-        durationSeconds,
-        start,
-        end,
-      });
+      const draggedClip = waveformItems[clipId];
+
+      const stretchImminent =
+      timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
+
+      const isHighlighted = draggedClip.id === highlightedClipId;
+      if(!isHighlighted) selectItem(waveformRegions[regionIndex], draggedClip);
+
+      if (stretchImminent) {
+        dispatch({
+          type: "STRETCH_ITEM",
+          id: clipId,
+          durationSeconds,
+          start,
+          end,
+        });
+      }
+
+      if (playerRef.current) {
+        // if this clip isnt currently selected, just use drag start?
+        // if this clip isnt currently selected, use item start.
+        const clipStart = draggedClip.start
+        const newTimeSeconds =
+          !isHighlighted || stretchImminent
+            ? bound(msToSeconds(clipStart), [0, waveform.state.durationSeconds])
+            : msToSeconds(end);
+        if (playerRef.current.currentTime != newTimeSeconds) {
+          waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
+          playerRef.current.currentTime = newTimeSeconds;
+        }
+      }
     },
-    [dispatch]
+    [highlightedClipId, selectItem, waveform.selectionDoesntNeedSetAtNextTimeUpdate, waveform.state.durationSeconds, waveformItems, waveformRegions]
   );
 
   const deleteCaption = useCallback(
@@ -339,19 +426,6 @@ export function HomeEditor({
     },
     [dispatch]
   );
-
-  const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
-  const waveform = useWaveform(waveformRegions, waveformItems);
-  const {
-    onTimeUpdate,
-    resetWaveformState,
-    state: { selection, durationSeconds },
-    selectItem,
-  } = waveform;
-  usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
-
-  const highlightedClipId =
-    selection?.item?.type === "Clip" ? selection.item.id : null;
 
   const reload = useCallback(() => {
     const yes = confirm("Discard your work and start again?");
@@ -430,7 +504,7 @@ export function HomeEditor({
       );
 
       const text = stringifySync(nodes, { format: "SRT" });
-      download(fileSelection!.name.replace(/(\.*)?$/, "") + ".srt", text);
+      download(fileSelection.name.replace(/(\.*)?$/, "") + ".srt", text);
     } catch (err) {
       console.error("Problem exporting");
       throw err;
@@ -482,7 +556,7 @@ export function HomeEditor({
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(
     null
   );
-  const itemIdsAtCurrentTime = selection?.region.itemIds.length
+  const itemIdsAtCurrentTime = selection?.region?.itemIds.length
     ? selection.region.itemIds
     : null;
   const updateCaptionText = useCallback(() => {
@@ -640,7 +714,9 @@ export function HomeEditor({
               onTimeUpdate={handleMediaTimeUpdate}
               onMediaLoaded={resetWaveformState}
             />
-            <div className={css.currentCaptionText}>
+            <div className={cn(css.currentCaptionText, {
+              [css.audio]: fileSelection.type === "AUDIO",
+            })}>
               <span className={css.currentCaptionTextInner}>
                 {currentCaptionText}
               </span>
@@ -657,6 +733,7 @@ export function HomeEditor({
           onClipEdgeDrag={handleClipEdgeDrag}
           selectItem={highlightClip}
         />
+        {waveformError}
       </main>
 
       <footer className={css.footer}>
@@ -670,11 +747,4 @@ export function HomeEditor({
       </footer>
     </div>
   );
-}
-
-function overlap(
-  a: Pick<WaveformItem, "start" | "end">,
-  b: Pick<WaveformItem, "start" | "end">
-) {
-  return a.start <= b.end && a.end >= b.start;
 }

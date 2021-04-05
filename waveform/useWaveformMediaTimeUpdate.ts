@@ -22,6 +22,7 @@ export const overlapsSignificantly = (
 
 export function useWaveformMediaTimeUpdate(
   svgRef: MutableRefObject<SVGElement | null>,
+  selectionDoesntNeedSetAtNextTimeUpdate: MutableRefObject<boolean>,
   dispatch: Dispatch<WaveformAction>,
   waveformItems: Record<string, WaveformItem>,
   regions: WaveformRegion[],
@@ -33,13 +34,21 @@ export function useWaveformMediaTimeUpdate(
       seeking: MutableRefObject<boolean>,
       looping: boolean
     ) => {
-      // TODO: optimize non-seeking case
+      const wasSeeking = seeking.current;
+      seeking.current = false;
 
       const svg = svgRef.current;
       if (!svg) return console.error("Svg disappeared");
 
       const newMilliseconds = secondsToMs(media.currentTime);
       const currentSelection = state.selection;
+
+      if (selectionDoesntNeedSetAtNextTimeUpdate.current) {
+        selectionDoesntNeedSetAtNextTimeUpdate.current = false;
+        setCursorX(msToPixels(newMilliseconds, state.pixelsPerSecond));
+
+        return;
+      }
 
       const newSelectionCandidate = getNewWaveformSelectionAt(
         waveformItems,
@@ -54,8 +63,6 @@ export function useWaveformMediaTimeUpdate(
       )
         ? newSelectionCandidate
         : null;
-      const wasSeeking = seeking.current;
-      seeking.current = false;
 
       const loopImminent =
         !wasSeeking &&
@@ -69,7 +76,7 @@ export function useWaveformMediaTimeUpdate(
           type: "NAVIGATE_TO_TIME",
           ms: currentSelection.item.start,
           viewBoxStartMs: state.viewBoxStartMs,
-          selection: currentSelection
+          selection: currentSelection,
         });
       }
 
@@ -90,7 +97,7 @@ export function useWaveformMediaTimeUpdate(
         ),
       });
     },
-    [svgRef, state, waveformItems, regions, dispatch]
+    [svgRef, state, selectionDoesntNeedSetAtNextTimeUpdate, waveformItems, regions, dispatch]
   );
 }
 
@@ -150,10 +157,10 @@ function viewBoxStartMsOnTimeUpdate(
 
   const rightShiftRequired = newlySetMs >= currentRightEdge;
   if (rightShiftRequired) {
-    return bound((newSelectionItem ? newSelectionItem.end : newlySetMs) + buffer, [
-      0,
-      durationMs - visibleTimeSpan,
-    ]);
+    return bound(
+      (newSelectionItem ? newSelectionItem.end : newlySetMs) + buffer,
+      [0, durationMs - visibleTimeSpan]
+    );
   }
 
   return state.viewBoxStartMs;
@@ -163,14 +170,53 @@ export const getNewWaveformSelectionAt = (
   newWaveformItems: Record<string, WaveformItem>,
   regions: WaveformRegion[],
   newMs: number,
-  currentSelection: WaveformState['selection']
+  currentSelection: WaveformState["selection"]
 ): WaveformState["selection"] => {
-  if (currentSelection && currentSelection.region === regions[currentSelection.regionIndex]) {
-    if (newMs >= currentSelection.region.start && newMs < getRegionEnd(regions, currentSelection.regionIndex)) {
-      return currentSelection
-    }
-  } 
-    for (let i = 0; i < regions.length; i++) {
+  const unchangedCurrentSelection =
+    currentSelection &&
+    currentSelection.region === regions[currentSelection.regionIndex]
+      ? currentSelection
+      : null;
+  const stillWithinSameRegion =
+    unchangedCurrentSelection &&
+    newMs >= unchangedCurrentSelection.region.start &&
+    newMs < getRegionEnd(regions, unchangedCurrentSelection.regionIndex);
+  if (unchangedCurrentSelection && stillWithinSameRegion) {
+    return unchangedCurrentSelection;
+  }
+
+  const nextRegionIndex = unchangedCurrentSelection
+    ? unchangedCurrentSelection.regionIndex + 1
+    : null;
+  const nextRegion =
+    typeof nextRegionIndex === "number" ? regions[nextRegionIndex] : null;
+  const withinNextRegion =
+    nextRegion &&
+    typeof nextRegionIndex === "number" &&
+    newMs >= nextRegion.start &&
+    newMs < getRegionEnd(regions, nextRegionIndex);
+  if (
+    withinNextRegion &&
+    typeof nextRegionIndex === "number" &&
+    nextRegion?.itemIds.length
+  ) {
+    const overlappedItemId = nextRegion.itemIds.find(
+      (id) =>
+        newMs >= newWaveformItems[id].start && newMs < newWaveformItems[id].end
+    );
+    const overlappedItem = overlappedItemId
+      ? newWaveformItems[overlappedItemId]
+      : null;
+    return overlappedItem
+      ? {
+          region: nextRegion,
+          item: overlappedItem,
+          regionIndex: nextRegionIndex,
+        }
+      : null;
+  }
+
+  for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
 
     if (region.start > newMs) break;

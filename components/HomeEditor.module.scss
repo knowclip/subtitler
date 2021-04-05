@@ -94,6 +94,8 @@ $background-grey: #f1f1f1;
 }
 
 .captionsMenu {
+  pointer-events: none;
+
   flex: 0 1;
   padding: 0.8rem;
   display: flex;
@@ -115,6 +117,8 @@ $background-grey: #f1f1f1;
 }
 
 .actionButton {
+  pointer-events: auto;
+
   border: 0;
   padding: 0.4rem 0.8rem;
   font-size: 1.4rem;
@@ -166,6 +170,10 @@ $background-grey: #f1f1f1;
   padding: 1rem 1rem 0 1rem;
   white-space: pre-wrap;
   font-size: 1.4rem;
+
+  &.audio {
+    display: none;
+  }
 }
 .currentCaptionTextInner {
   background-color: black;
