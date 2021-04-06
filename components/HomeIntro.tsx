@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import css from "./HomeIntro.module.scss";
 
 const onMobile =
@@ -58,13 +59,19 @@ export function Intro({
         )}
       </main>
       <footer className={css.footer}>
-        <a
-          href="https://knowclip.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Use your subtitles to learn languages with Knowclip
-        </a>
+        <p>
+          <a
+            href="https://knowclip.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Use your subtitles to learn languages with Knowclip
+          </a>
+        </p>
+
+        <p className={css.impressumLink}>
+          <Link href="/imprint">Impressum</Link>
+        </p>
       </footer>
     </div>
   );
