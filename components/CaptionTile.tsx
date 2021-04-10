@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import cn from "classnames";
 import { usePrevious } from "../utils/usePrevious";
-import { WaveformItem } from "../waveform/WaveformState";
+import { WaveformItem, WaveformRegion } from "clipwave";
 import css from "./CaptionTile.module.scss";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
-import { toTimestamp } from "../waveform/toTimestamp";
+import { toTimestamp } from "../utils/toTimestamp";
 import { Caption } from "../utils/caption";
-import { WaveformRegion } from "../utils/calculateRegions";
 
 export function CaptionTile({
   caption,

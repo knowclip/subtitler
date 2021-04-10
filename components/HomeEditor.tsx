@@ -10,24 +10,26 @@ import cn from "classnames";
 import { parseSync, stringifySync } from "subtitle";
 import { usePrevious } from "../utils/usePrevious";
 import { Media } from "./Media";
-import { usePlayButtonSync } from "../utils/usePlayButtonSync";
-import Waveform from "../waveform/Waveform";
-import { useWaveform } from "../waveform/useWaveform";
-import { useWaveformImages } from "../waveform/useWaveformImages";
-import { WaveformItem } from "../waveform/WaveformState";
 import {
+  Waveform,
+  useWaveform,
+  usePlayButtonSync,
+  WaveformItem,
   WaveformDragCreate,
   WaveformDragMove,
   WaveformDragOf,
   WaveformDragStretch,
-} from "../waveform/WaveformEvent";
-import css from "./HomeEditor.module.scss";
-import scrollIntoView from "scroll-into-view-if-needed";
-import {
   CLIP_THRESHOLD_MILLSECONDS,
   msToSeconds,
   secondsToMs,
-} from "../waveform/utils";
+  WaveformRegion,
+  calculateRegions,
+  newRegionsWithItem,
+  recalculateRegions,
+  getRegionEnd,
+} from "clipwave";
+import css from "./HomeEditor.module.scss";
+import scrollIntoView from "scroll-into-view-if-needed";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 import { bound } from "../utils/bound";
 import { CaptionTile } from "./CaptionTile";
@@ -35,14 +37,8 @@ import { caption, Caption } from "../utils/caption";
 import { newId } from "../utils/newId";
 import { download } from "../utils/download";
 import { MediaSelection } from "../pages/index";
-import {
-  calculateRegions,
-  getRegionEnd,
-  newRegionsWithItem,
-  recalculateRegions,
-  WaveformRegion,
-} from "../utils/calculateRegions";
 import Link from "next/link";
+import { useWaveformImages } from "../utils/useWaveformImages";
 
 type CaptionsEditorState = {
   captions: Record<string, Caption>;
@@ -249,14 +245,14 @@ export function HomeEditor({
   const {
     waveformLoading,
     error: waveformError,
-    waveformUrls,
+    waveformImages,
     loadWaveformImages,
   } = useWaveformImages();
 
   const prevFileSelection = usePrevious(fileSelection);
   useEffect(() => {
     if (fileSelection !== prevFileSelection) {
-      loadWaveformImages(fileSelection.recordName);
+      loadWaveformImages(fileSelection.recordName, fileSelection.durationSeconds);
       dispatch({
         type: "RESET",
         end: secondsToMs(fileSelection.durationSeconds),
@@ -736,12 +732,11 @@ export function HomeEditor({
         <Waveform
           waveform={waveform}
           durationSeconds={fileSelection.durationSeconds}
-          imageUrls={waveformUrls}
+          images={waveformImages}
           playerRef={playerRef}
           onWaveformDrag={handleWaveformDrag}
           onClipDrag={handleClipDrag}
           onClipEdgeDrag={handleClipEdgeDrag}
-          selectItem={highlightClip}
         />
         {waveformError}
       </main>

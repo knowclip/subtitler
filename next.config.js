@@ -1,5 +1,6 @@
 const withPWA = require("next-pwa");
 const runtimeCaching = require("next-pwa/cache");
+const path = require("path")
 
 const configWithPWA = withPWA({
   pwa: {
@@ -27,6 +28,11 @@ const config = {
       },
     ];
   },
+  webpack: (config) => {
+    // // Needed when library is linked via `npm link` to app
+    // config.resolve.alias.react = path.resolve("./node_modules/react")
+    return config
+  }
 };
 
 module.exports = config;

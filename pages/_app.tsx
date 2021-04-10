@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import '../styles/globals.css'
+import 'clipwave/dist/index.css'
 import 'plyr/src/sass/plyr.scss'
 import { AppProps } from 'next/dist/next-server/lib/router/router'
 
