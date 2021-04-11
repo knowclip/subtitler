@@ -2358,10 +2358,10 @@ clean-webpack-plugin@^3.0.0:
     "@types/webpack" "^4.4.31"
     del "^4.1.1"
 
-clipwave@^0.0.0:
-  version "0.0.0"
-  resolved "https://registry.yarnpkg.com/clipwave/-/clipwave-0.0.0.tgz#7cc34ee80a1d1ff4669ad99bc07b3adc8395178c"
-  integrity sha512-hnmg/hlv5D16vUyEkAmtZV0c8CogaBxbJSoErArBHKReA9YNEn84ZglCrbnCL+9dEcdxriDgrArKoLMYKk2FKw==
+clipwave@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/clipwave/-/clipwave-0.1.1.tgz#b8d0f9ed1e3d1639d2f70ec4a6160172261c8d5f"
+  integrity sha512-9POdFwM/AQaFNbCHFmsnPlPtfqxCSPPmEXFKcIrLKAv641guJcA91aI75RpFw0ifCYX7pEeMZdNGPtfljiXcSQ==
   dependencies:
     classnames "^2.3.1"
 

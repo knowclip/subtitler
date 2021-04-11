@@ -12,7 +12,7 @@
     "@ffmpeg/ffmpeg": "^0.9.7",
     "@types/uuid": "^8.3.0",
     "classnames": "^2.2.6",
-    "clipwave": "^0.0.0",
+    "clipwave": "^0.1.1",
     "jest": "^26.6.3",
     "next": "latest",
     "next-pwa": "^3.1.0",

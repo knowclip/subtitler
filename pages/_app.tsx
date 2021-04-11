@@ -4,6 +4,8 @@ import 'clipwave/dist/index.css'
 import 'plyr/src/sass/plyr.scss'
 import { AppProps } from 'next/dist/next-server/lib/router/router'
 
+global.Event = global.Event || global.Object
+
 export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
