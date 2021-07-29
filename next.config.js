@@ -30,7 +30,7 @@ const config = {
   },
   webpack: (config) => {
     // // Needed when library is linked via `npm link` to app
-    // config.resolve.alias.react = path.resolve("./node_modules/react")
+    config.resolve.alias.react = path.resolve("./node_modules/react")
     return config
   }
 };
