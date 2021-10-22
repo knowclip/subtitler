@@ -170,6 +170,7 @@ $background-grey: #f1f1f1;
   padding: 1rem 1rem 0 1rem;
   white-space: pre-wrap;
   font-size: 1.4rem;
+  pointer-events: none;
 
   &.audio {
     display: none;
@@ -177,6 +178,7 @@ $background-grey: #f1f1f1;
 }
 .currentCaptionTextInner {
   background-color: black;
+  pointer-events: none;
 }
 
 .footer {
