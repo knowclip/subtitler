@@ -7,7 +7,6 @@ import React, {
   useState,
 } from "react";
 import cn from "classnames";
-import { parseSync, stringifySync } from "subtitle";
 import { usePrevious } from "../utils/usePrevious";
 import { Media } from "./Media";
 import {
@@ -15,28 +14,24 @@ import {
   useWaveform,
   usePlayButtonSync,
   WaveformItem,
-  WaveformDragCreate,
-  WaveformDragMove,
-  WaveformDragOf,
-  WaveformDragStretch,
-  CLIP_THRESHOLD_MILLSECONDS,
   msToSeconds,
   secondsToMs,
   WaveformRegion,
+  WaveformState,
 } from "clipwave";
 import css from "./HomeEditor.module.scss";
 import scrollIntoView from "scroll-into-view-if-needed";
 import { getCaptionArticleId } from "../utils/getCaptionArticleId";
-import { bound } from "../utils/bound";
 import { CaptionTile } from "./CaptionTile";
-import { caption, Caption } from "../utils/caption";
-import { newId } from "../utils/newId";
-import { download } from "../utils/download";
+import { Caption } from "../utils/caption";
 import { MediaSelection } from "../pages/index";
 import Link from "next/link";
 import { useWaveformImages } from "../utils/useWaveformImages";
+import { editorReducer } from "./editorReducer";
+import { useWaveformEventHandlers } from "./useWaveformEventHandlers";
+import { useSrtActions } from "./useSrtActions";
 
-type CaptionsEditorState = {
+export type CaptionsEditorState = {
   captions: Record<string, Caption>;
   waveformItems: Record<string, WaveformItem>;
 };
@@ -46,137 +41,7 @@ const getInitialState = (): CaptionsEditorState => ({
   waveformItems: {},
 });
 
-function reducer(
-  state: CaptionsEditorState,
-  action: Action
-): CaptionsEditorState {
-  switch (action.type) {
-    case "ADD_ITEM": {
-      const { item } = action;
-
-      return {
-        ...state,
-        waveformItems: {
-          ...state.waveformItems,
-          [action.item.id]: action.item,
-        },
-        captions: {
-          ...state.captions,
-          [action.item.id]: {
-            uuid: item.id,
-            text: "",
-          },
-        },
-      };
-    }
-    case "MOVE_ITEM": {
-      const { deltaX, id } = action;
-      const target = state.waveformItems[id];
-
-      const moved = {
-        ...target,
-        start: target.start + deltaX,
-        end: target.end + deltaX,
-      };
-      return {
-        ...state,
-        waveformItems: {
-          ...state.waveformItems,
-          [id]: moved,
-        },
-      };
-    }
-
-    case "STRETCH_ITEM": {
-      const { id, end, originKey } = action;
-      const target = state.waveformItems[id];
-      const stretched = {
-        ...target,
-        [originKey]: end,
-      };
-      return {
-        ...state,
-        waveformItems: {
-          ...state.waveformItems,
-          [id]: stretched,
-        },
-      };
-    }
-
-    case "DELETE_CAPTION": {
-      const { id } = action;
-      const newCaptions = { ...state.captions };
-      delete newCaptions[id];
-      return {
-        ...state,
-        captions: newCaptions,
-      };
-    }
-
-    case "RESET":
-      return {
-        ...state,
-        waveformItems: {},
-        captions: {},
-      };
-
-    case "SET_ITEMS": {
-      return {
-        ...state,
-        captions: action.captions,
-        waveformItems: action.waveformItems,
-      };
-    }
-    case "SET_CAPTION_TEXT": {
-      const { id, text } = action;
-
-      return {
-        ...state,
-        captions: {
-          ...state.captions,
-          [id]: {
-            ...state.captions[id],
-            text,
-          },
-        },
-      };
-    }
-
-    default:
-      return state;
-  }
-}
-
-type Action =
-  | { type: "ADD_ITEM"; item: WaveformItem }
-  | {
-      type: "MOVE_ITEM";
-      id: string;
-      deltaX: number;
-    }
-  | {
-      type: "STRETCH_ITEM";
-      id: string;
-      start: number;
-      end: number;
-      originKey: "start" | "end";
-    }
-  | { type: "DELETE_CAPTION"; id: string }
-  | {
-      type: "SET_ITEMS";
-      captions: CaptionsEditorState["captions"];
-      waveformItems: Record<string, WaveformItem>;
-      // rename
-      end: number;
-    }
-  | {
-      type: "SET_CAPTION_TEXT";
-      id: string;
-      text: string;
-    }
-  | { type: "RESET"; end: number };
-
-const DRAG_ACTION_TIME_THRESHOLD = 400;
+export const DRAG_ACTION_TIME_THRESHOLD = 400;
 export function HomeEditor({
   handleChangeLocalFile,
   fileError,
@@ -208,18 +73,19 @@ export function HomeEditor({
     }
   }, [fileSelection, loadWaveformImages, prevFileSelection]);
 
-  const [{ waveformItems, captions }, dispatch] = useReducer(
-    reducer,
+  const [captionsEditorState, dispatch] = useReducer(
+    editorReducer,
     undefined,
     () => getInitialState()
   );
+  const { waveformItems, captions } = captionsEditorState;
 
   const captionIds = useMemo(() => Object.keys(captions), [captions]);
 
   const getItem = useCallback(
     (id: string) => {
       const clip = waveformItems[id];
-      return clip;
+      return clip || null;
     },
     [waveformItems]
   );
@@ -228,275 +94,60 @@ export function HomeEditor({
   const waveform = useWaveform(getItem);
   const {
     onTimeUpdate,
-    state: { selection, durationSeconds, regions },
+    state: { durationSeconds, regions },
     actions: waveformActions,
+    getSelection,
   } = waveform;
+  const selection = getSelection();
   const highlightedClipId =
     selection?.item?.clipwaveType === "Primary" ? selection.item.id : null;
   usePlayButtonSync(waveform.state.pixelsPerSecond, playerRef);
 
   const { resetWaveformState, selectItem } = waveformActions;
 
-  const handleWaveformDrag = useCallback(
-    ({
-      action: { start: startRaw, end: endRaw },
-    }: WaveformDragOf<WaveformDragCreate>) => {
-      const start = Math.min(startRaw, endRaw);
-      const end = Math.max(startRaw, endRaw);
-
-      if (end - start < CLIP_THRESHOLD_MILLSECONDS) {
-        if (playerRef.current) {
-          playerRef.current.currentTime = msToSeconds(endRaw);
-        }
-        return;
-      }
-
-      const id = newId();
-      const newClip = {
-        clipwaveType: "Primary" as const,
-        start,
-        end,
-        id,
-      };
-      dispatch({
-        type: "ADD_ITEM",
-        item: newClip,
-      });
-      waveformActions.addItem(newClip);
-
-      if (playerRef.current) {
-        playerRef.current.currentTime = msToSeconds(start);
-      }
-
-      setTimeout(() => {
-        const button: HTMLTextAreaElement | null = document.querySelector(
-          `#${getCaptionArticleId(id)} button`
-        );
-        button?.click();
-      }, 0);
-    },
-    [waveformActions]
-  );
-  const handleClipDrag = useCallback(
-    ({
-      action: move,
-      mouseDown,
-      timeStamp,
-    }: WaveformDragOf<WaveformDragMove>) => {
-      const { start, end, clip, regionIndex } = move;
-      const { id } = clip;
-      const isPrimaryClip = getItem(id).clipwaveType === "Primary";
-      if (!isPrimaryClip) {
-        // select
-        return;
-      }
-
-      const deltaX = end - start;
-      const moveImminent =
-        timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
-
-      if (moveImminent) {
-        waveformActions.moveItem(move);
-
-        dispatch({
-          type: "MOVE_ITEM",
-          id: id,
-          deltaX,
-        });
-      }
-
-      const draggedClip = getItem(id);
-      const isHighlighted = draggedClip.id === highlightedClipId;
-      const region = regions[regionIndex];
-      if (!isHighlighted) selectItem(region, draggedClip);
-
-      if (playerRef.current) {
-        const clipStart = moveImminent
-          ? draggedClip.start + deltaX
-          : draggedClip.start;
-        const newTimeSeconds =
-          !isHighlighted || moveImminent
-            ? bound(msToSeconds(clipStart), [0, waveform.state.durationSeconds])
-            : msToSeconds(end);
-        if (playerRef.current.currentTime != newTimeSeconds) {
-          waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
-          playerRef.current.currentTime = newTimeSeconds;
-        }
-      }
-    },
-    [
-      getItem,
+  const { handleWaveformDrag, handleClipDrag, handleClipEdgeDrag } =
+    useWaveformEventHandlers(
+      waveform,
+      playerRef,
+      dispatch,
       highlightedClipId,
-      regions,
-      selectItem,
-      waveformActions,
-      waveform.state.durationSeconds,
-      waveform.selectionDoesntNeedSetAtNextTimeUpdate,
-    ]
-  );
-  const handleClipEdgeDrag = useCallback(
-    ({
-      action: stretch,
-      timeStamp,
-      mouseDown,
-    }: WaveformDragOf<WaveformDragStretch>) => {
-      const { start, end, clipId, regionIndex, originKey } = stretch;
+      waveformItems
+    );
 
-      const draggedClip = waveformItems[clipId];
-
-      const stretchImminent =
-        timeStamp - mouseDown.timeStamp > DRAG_ACTION_TIME_THRESHOLD;
-
-      const isHighlighted = draggedClip.id === highlightedClipId;
-      if (!isHighlighted) selectItem(regions[regionIndex], draggedClip);
-
-      if (stretchImminent) {
-        waveformActions.stretchItem(stretch);
-
-        dispatch({
-          type: "STRETCH_ITEM",
-          id: clipId,
-          originKey,
-          start,
-          end,
-        });
-      }
-
-      if (playerRef.current) {
-        // if this clip isnt currently selected, just use drag start?
-        // if this clip isnt currently selected, use item start.
-        const clipStart = draggedClip.start;
-        const newTimeSeconds =
-          !isHighlighted || stretchImminent
-            ? bound(msToSeconds(clipStart), [0, waveform.state.durationSeconds])
-            : msToSeconds(end);
-        if (playerRef.current.currentTime != newTimeSeconds) {
-          waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
-          playerRef.current.currentTime = newTimeSeconds;
-        }
-      }
-    },
-    [
-      waveformItems,
-      highlightedClipId,
-      selectItem,
-      regions,
-      waveformActions,
-      waveform.state.durationSeconds,
-      waveform.selectionDoesntNeedSetAtNextTimeUpdate,
-    ]
-  );
-
-  const deleteCaption = useCallback(
-    (id: string) => {
-      dispatch({
-        type: "DELETE_CAPTION",
-        id,
-      });
-    },
-    [dispatch]
-  );
+  const deleteCaption = useCallback((id: string) => {
+    dispatch({
+      type: "DELETE_CAPTION",
+      id,
+    });
+    // waveform.actions.deleteItem(id)
+  }, []);
 
   const reload = useCallback(() => {
     const yes = confirm("Discard your work and start again?");
     if (yes) window.location.reload();
   }, []);
 
-  const handleImportSrt: React.ChangeEventHandler<HTMLInputElement> = useCallback(
-    (e) => {
-      const { files } = e.target;
-      const file = files?.[0];
-      if (!file) return;
-
-      function readFileFromFileInput(file: File) {
-        return new Promise<string | undefined>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) =>
-            resolve(e.target?.result as string | undefined);
-          reader.onerror = (e) => reject(e);
-          reader.readAsText(file);
-        });
-      }
-
-      readFileFromFileInput(file).then((text) => {
-        if (!text) throw new Error("Invalid subtitles file");
-        const nodes = parseSync(text);
-        const {
-          newCaptions,
-          newWaveformItems,
-          newWaveformItemsMap,
-        } = nodes.reduce(
-          (acc, node) => {
-            if (node.type === "cue") {
-              const newCaption = caption(node.data.text);
-              acc.newCaptions[newCaption.uuid] = newCaption;
-              acc.newWaveformItems.push({
-                clipwaveType: "Primary" as const,
-                id: newCaption.uuid,
-                start: node.data.start,
-                end: node.data.end,
-              });
-            }
-
-            return acc;
-          },
-
-          {
-            newCaptions: {} as Record<string, Caption>,
-            newWaveformItems: [] as WaveformItem[],
-            newWaveformItemsMap: {} as Record<string, WaveformItem>,
-          }
-        );
-        waveformActions.resetWaveformState(
-          playerRef.current,
-          newWaveformItems.sort((a, b) => {
-            const byStart = a.start - b.start;
-            return byStart || b.end - a.end;
-          })
-        );
-        dispatch({
-          type: "SET_ITEMS",
-          captions: newCaptions,
-          waveformItems: newWaveformItemsMap,
-          end: secondsToMs(durationSeconds),
-        });
-      });
-    },
-    [durationSeconds, waveformActions]
+  const {
+    handleImportSrt,
+    handleExportSrt,
+  }: {
+    handleImportSrt: React.ChangeEventHandler<HTMLInputElement>;
+    handleExportSrt: React.MouseEventHandler<Element>;
+  } = useSrtActions(
+    waveform,
+    captionsEditorState,
+    playerRef,
+    dispatch,
+    fileSelection
   );
-
-  const handleExportSrt: React.MouseEventHandler = useCallback(() => {
-    try {
-      const nodes = Object.values(waveformItems).flatMap((c) =>
-        c.clipwaveType === "Primary"
-          ? [
-              {
-                type: "cue" as const,
-                data: {
-                  start: secondsToMs(c.start),
-                  end: secondsToMs(c.end),
-                  text: captions[c.id].text,
-                },
-              },
-            ]
-          : []
-      );
-
-      const text = stringifySync(nodes, { format: "SRT" });
-      download(fileSelection.name.replace(/(\.*)?$/, "") + ".srt", text);
-    } catch (err) {
-      console.error("Problem exporting");
-      throw err;
-    }
-  }, [captions, fileSelection, waveformItems]);
 
   const highlightClip = useCallback(
     (region: WaveformRegion, clip: WaveformItem) => {
-      selectItem(region, clip);
+      selectItem(regions.indexOf(region), clip.id);
       if (playerRef.current)
         playerRef.current.currentTime = msToSeconds(clip.start);
     },
-    [selectItem]
+    [regions, selectItem]
   );
   const previousHighlightedClip = usePrevious(highlightedClipId);
   useEffect(() => {
@@ -513,10 +164,12 @@ export function HomeEditor({
     }
   }, [highlightedClipId, previousHighlightedClip]);
 
+  const [editingCaption, setEditingCaption] = useState(false);
   const [loopReason, setLoopReason] = useState<"EDIT_CLIP" | null>(null);
   const handleChangeCaptionEditing = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (editing: boolean, clipId: string) => {
+      setEditingCaption(editing);
       setLoopReason(editing ? "EDIT_CLIP" : null);
     },
     []
@@ -535,16 +188,19 @@ export function HomeEditor({
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(
     null
   );
-  const itemIdsAtCurrentTime = selection?.region?.itemIds.length
+  const itemIdsAtCurrentTime = selection.region?.itemIds.length
     ? selection.region.itemIds
     : null;
   const updateCaptionText = useCallback(() => {
-    const currentWaveformItem = selection;
+    const currentWaveformItem = selection.item;
+
+    if (editingCaption) return;
+
     if (
       itemIdsAtCurrentTime &&
       currentWaveformItem &&
       secondsToMs(playerRef.current?.currentTime || Infinity) <
-        currentWaveformItem.item.end
+        currentWaveformItem.end
     )
       setCurrentCaptionText(
         itemIdsAtCurrentTime
@@ -556,7 +212,7 @@ export function HomeEditor({
           .join("\n")
       );
     else setCurrentCaptionText(null);
-  }, [selection, itemIdsAtCurrentTime, captions]);
+  }, [selection, itemIdsAtCurrentTime, captions, editingCaption]);
   useEffect(() => {
     updateCaptionText();
   }, [
@@ -583,6 +239,7 @@ export function HomeEditor({
     },
     [onTimeUpdate, updateCaptionText]
   );
+
 
   /* eslint-disable jsx-a11y/click-events-have-key-events,jsx-a11y/no-noninteractive-element-interactions */
   return (
@@ -630,13 +287,16 @@ export function HomeEditor({
                 </p>
               )}
               {regions.reduce((all, region) => {
-                const newItems = region.itemIds.filter(
-                  (id) => waveformItems[id].start === region.start
-                );
+                const newItems = region.itemIds.flatMap((id) => {
+                  const item = waveform.getItem(id); // , 'captiontiles');
+                  return item && waveformItems[id].start === region.start
+                    ? [item]
+                    : [];
+                });
                 const newIndexesStart = all.length;
                 all.push(
-                  ...newItems.flatMap((id, i) => {
-                    const item = waveformItems[id];
+                  ...newItems.flatMap((item, i) => {
+                    const { id } = item;
                     if (item.clipwaveType === "Primary") {
                       if (!captions[id]) {
                         return [];
@@ -741,3 +401,4 @@ export function HomeEditor({
     </div>
   );
 }
+

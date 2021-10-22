@@ -2358,10 +2358,10 @@ clean-webpack-plugin@^3.0.0:
     "@types/webpack" "^4.4.31"
     del "^4.1.1"
 
-clipwave@^0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/clipwave/-/clipwave-0.1.1.tgz#b8d0f9ed1e3d1639d2f70ec4a6160172261c8d5f"
-  integrity sha512-9POdFwM/AQaFNbCHFmsnPlPtfqxCSPPmEXFKcIrLKAv641guJcA91aI75RpFw0ifCYX7pEeMZdNGPtfljiXcSQ==
+clipwave@0.1.7-18:
+  version "0.1.7-18"
+  resolved "https://registry.yarnpkg.com/clipwave/-/clipwave-0.1.7-18.tgz#01ac00cdc37cbfed34d1f7d91e71c83b0e9b2480"
+  integrity sha512-OME+5inQixJG9P0zLjCytO83V7Qj7FfnbWTD1OMQnbb2RQOrhXk9CsC9B9CNrLn+lkeIbizgJuQJGarFTZpQsA==
   dependencies:
     classnames "^2.3.1"
 
@@ -6496,10 +6496,10 @@ stylis@3.5.4:
   resolved "https://registry.yarnpkg.com/stylis/-/stylis-3.5.4.tgz#f665f25f5e299cf3d64654ab949a57c768b73fbe"
   integrity sha512-8/3pSmthWM7lsPBKv7NXkzn2Uc9W7NotcwGNpJaa3k7WMM1XDCA4MgT5k/8BIexd5ydZdboXtU90XH9Ec4Bv/Q==
 
-subtitle@^4.1.0:
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/subtitle/-/subtitle-4.1.0.tgz#0411331f57a30c6a816f2c6639a3058837fd003f"
-  integrity sha512-ctVa9qAfoNlXGIcWMMhqV8zoTVcRXJDDBDhU6CvpK2zycir3m8IUwofy9vYwUCnC22CfiEe0j83Grmp+GFEOqQ==
+subtitle@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/subtitle/-/subtitle-4.1.1.tgz#83273b22cab5ce705a99cc86bd502e6bdbc02724"
+  integrity sha512-FfRj+xwGOOLSDUMAv9LSvS6rUDvaMmHE7rD6e3p/qrYyxD3+EuTj7cUbDthWwVmbFxVRnGGngqEVVwW9tdTR2g==
   dependencies:
     "@types/multipipe" "^3.0.0"
     multipipe "^4.0.0"
