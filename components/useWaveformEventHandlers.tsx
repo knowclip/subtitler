@@ -75,7 +75,6 @@ export function useWaveformEventHandlers(
       const { start, end, clipId, regionIndex } = move;
       const isPrimaryClip = getItem(clipId)?.clipwaveType === "Primary";
       if (!isPrimaryClip) {
-        // select
         return;
       }
 

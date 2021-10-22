@@ -48,8 +48,6 @@ export function useSrtActions(
                   const newWaveformItem = {
                     clipwaveType: "Primary" as const,
                     id: newCaption.uuid,
-                    // start: secondsToMs(node.data.start),
-                    // end: secondsToMs(node.data.end),
                     start: node.data.start,
                     end: node.data.end,
                   };
