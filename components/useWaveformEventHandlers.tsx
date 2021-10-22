@@ -14,13 +14,12 @@ import { getCaptionArticleId } from "../utils/getCaptionArticleId";
 import { bound } from "../utils/bound";
 import { newId } from "../utils/newId";
 import { DRAG_ACTION_TIME_THRESHOLD } from "./HomeEditor";
+import { Action } from "./editorReducer";
 
 export function useWaveformEventHandlers(
   waveform: WaveformInterface,
   playerRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>,
-  dispatch: React.Dispatch<
-    import("/Users/justin/code/subtitler/components/editorReducer").Action
-  >,
+  dispatch: React.Dispatch<Action>,
   highlightedClipId: string | null,
   waveformItems: Record<string, WaveformItem>
 ) {
@@ -29,7 +28,7 @@ export function useWaveformEventHandlers(
     getItem,
     state: { regions },
   } = waveform;
-  const { selectItem } = waveformActions
+  const { selectItem } = waveformActions;
 
   const handleWaveformDrag = useCallback(
     ({
@@ -69,7 +68,7 @@ export function useWaveformEventHandlers(
         button?.click();
       }, 0);
     },
-    [waveformActions]
+    [dispatch, playerRef, waveformActions]
   );
   const handleClipDrag = useCallback(
     ({ gesture: move, mouseDown, timeStamp }: WaveformGestureOf<ClipDrag>) => {
@@ -115,11 +114,6 @@ export function useWaveformEventHandlers(
           playerRef.current,
           secondsToMs(newTimeSeconds)
         );
-
-        // if (playerRef.current.currentTime != newTimeSeconds) {
-        //   waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
-        //   playerRef.current.currentTime = newTimeSeconds;
-        // }
       }
     },
     [
@@ -127,7 +121,9 @@ export function useWaveformEventHandlers(
       highlightedClipId,
       regions,
       selectItem,
+      playerRef,
       waveformActions,
+      dispatch,
       waveform.state.durationSeconds,
       waveform.actions,
     ]
@@ -161,8 +157,6 @@ export function useWaveformEventHandlers(
       }
 
       if (playerRef.current) {
-        // if this clip isnt currently selected, just use drag start?
-        // if this clip isnt currently selected, use item start.
         const clipStart = draggedClip.start;
         const newTimeSeconds =
           !isHighlighted || stretchImminent
@@ -175,16 +169,13 @@ export function useWaveformEventHandlers(
           playerRef.current,
           secondsToMs(newTimeSeconds)
         );
-        // if (playerRef.current.currentTime != newTimeSeconds) {
-        //   waveform.selectionDoesntNeedSetAtNextTimeUpdate.current = true;
-        //   playerRef.current.currentTime = newTimeSeconds;
-        // }
       }
     },
     [
       waveformItems,
       highlightedClipId,
       selectItem,
+      playerRef,
       waveformActions,
       dispatch,
       waveform.state.durationSeconds,
